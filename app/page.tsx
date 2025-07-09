@@ -397,7 +397,9 @@ async function handleChangeNick({ newUsername, setNickError, setNickSuccess, set
     const data = await res.json();
     if (data.success) {
       setUser((prev: any) => ({ ...prev, username: newUsername }));
-      localStorage.setItem('actogram_user', JSON.stringify({ ...user, username: newUsername }));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('actogram_user', JSON.stringify({ ...user, username: newUsername }));
+      }
       setNickSuccess('Ник успешно изменён!');
     } else {
       setNickError(data.error || 'Ошибка смены ника');
@@ -408,8 +410,8 @@ async function handleChangeNick({ newUsername, setNickError, setNickSuccess, set
 }
 
 export default function ChatPage() {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('actogram_token'));
-  const [user, setUser] = useState<User | null>(JSON.parse(localStorage.getItem('actogram_user') || 'null'));
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -431,6 +433,14 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setToken(localStorage.getItem('actogram_token'));
+      const savedUser = localStorage.getItem('actogram_user');
+      setUser(savedUser ? JSON.parse(savedUser) : null);
+    }
+  }, []);
 
   useEffect(() => {
     const socket = io('https://actogr.onrender.com', { transports: ['websocket'] });
@@ -561,8 +571,10 @@ export default function ChatPage() {
   const handleLogout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem('actogram_token');
-    localStorage.removeItem('actogram_user');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('actogram_token');
+      localStorage.removeItem('actogram_user');
+    }
   };
 
   const handleSearchUsers = async (query: string) => {
@@ -718,8 +730,10 @@ export default function ChatPage() {
       setToken(token);
       setUser(user);
       setShowAuth(false);
-      localStorage.setItem('actogram_token', token);
-      localStorage.setItem('actogram_user', JSON.stringify(user));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('actogram_token', token);
+        localStorage.setItem('actogram_user', JSON.stringify(user));
+      }
     }} />
   }
 
