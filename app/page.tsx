@@ -1,22 +1,6 @@
 "use client"
+
 import { useState, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
 import {
   MessageCircle,
   Users,
@@ -872,18 +856,43 @@ export default function ActogramChat() {
   if (!isDomainAllowed) {
     return (
       <div className={`min-h-screen ${gradientBg} flex items-center justify-center p-4`}>
-        <Card className={`max-w-md ${cardStyle}`}>
-          <CardHeader>
-            <CardTitle className="text-red-600 flex items-center gap-2">
-              <Shield className="h-6 w-6" />
-              Доступ ограничен
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className={`max-w-md ${cardStyle}`}>
+          <div className="p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <MessageCircle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold">{t.appName}</h1>
+                  <p className="text-xs text-blue-100">
+                    {isConnected ? (
+                      <span className="flex items-center gap-1">
+                        <Wifi className="h-3 w-3" />
+                        {t.connected}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <WifiOff className="h-3 w-3" />
+                        {t.disconnected}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-6 w-6" />
+                  Доступ ограничен
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-4">
             <p>ACTOGRAM доступен только с разрешенных доменов</p>
             <p className="text-sm text-gray-500 mt-2">Проверка безопасности домена</p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     )
   }
@@ -892,211 +901,124 @@ export default function ActogramChat() {
   if (!isAuthenticated) {
     return (
       <div className={`min-h-screen ${gradientBg} flex items-center justify-center p-4`}>
-        <Card className={`w-full max-w-md ${cardStyle} animate-in fade-in-50 duration-500`}>
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl">
-              <MessageCircle className="h-10 w-10 text-white" />
-            </div>
-            <div>
-              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {t.appName}
-              </CardTitle>
-              <p className="text-gray-600 dark:text-gray-300 mt-2">{t.welcome}</p>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-sm">
-              <Lock className="h-4 w-4 text-green-500" />
-              <span className="text-green-600 dark:text-green-400">End-to-End Encrypted</span>
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-6">
-            <Tabs value={isLoginMode ? "login" : "register"} className="w-full">
-              <TabsList className={`grid w-full grid-cols-2 ${cardStyle}`}>
-                <TabsTrigger value="login" onClick={() => setIsLoginMode(true)} className={buttonStyle}>
-                  {t.login}
-                </TabsTrigger>
-                <TabsTrigger value="register" onClick={() => setIsLoginMode(false)} className={buttonStyle}>
-                  {t.register}
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="login" className="space-y-4 mt-6">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="flex items-center gap-2 text-sm font-medium">
-                    <Mail className="h-4 w-4" />
-                    {t.email}
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    className={inputStyle}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="flex items-center gap-2 text-sm font-medium">
-                    <Lock className="h-4 w-4" />
-                    {t.password}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={formData.password}
-                      onChange={(e) => handleInputChange("password", e.target.value)}
-                      className={`${inputStyle} pr-10`}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="register" className="space-y-4 mt-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName" className="text-sm font-medium">
-                      {t.fullName}
-                    </Label>
-                    <Input
-                      id="fullName"
-                      placeholder="John Doe"
-                      value={formData.fullName}
-                      onChange={(e) => handleInputChange("fullName", e.target.value)}
-                      className={inputStyle}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="username" className="text-sm font-medium">
-                      {t.username}
-                    </Label>
-                    <Input
-                      id="username"
-                      placeholder="@username"
-                      value={formData.username}
-                      onChange={(e) => {
-                        let value = e.target.value
-                        if (!value.startsWith("@") && value.length > 0) {
-                          value = "@" + value
-                        }
-                        handleInputChange("username", value)
-                      }}
-                      className={inputStyle}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email-reg" className="flex items-center gap-2 text-sm font-medium">
-                    <Mail className="h-4 w-4" />
-                    {t.email}
-                  </Label>
-                  <Input
-                    id="email-reg"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    className={inputStyle}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password-reg" className="flex items-center gap-2 text-sm font-medium">
-                    <Lock className="h-4 w-4" />
-                    {t.password}
-                  </Label>
-                  <Input
-                    id="password-reg"
-                    type="password"
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={(e) => handleInputChange("password", e.target.value)}
-                    className={inputStyle}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bio" className="text-sm font-medium">
-                    {t.bio}
-                  </Label>
-                  <Input
-                    id="bio"
-                    placeholder="Tell us about yourself..."
-                    value={formData.bio}
-                    onChange={(e) => handleInputChange("bio", e.target.value)}
-                    className={inputStyle}
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
-
+        <div className={`w-full max-w-md ${cardStyle} animate-in fade-in-50 duration-500`}>
+          <div className="p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">{t.language}</Label>
-              <div className="flex gap-1">
-                {languages.map((lang) => (
-                  <Button
-                    key={lang.code}
-                    variant={language === lang.code ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setLanguage(lang.code as "uz" | "ru" | "en")}
-                    className={buttonStyle}
-                  >
-                    {lang.flag}
-                  </Button>
-                ))}
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <MessageCircle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    {t.appName}
+                  </h1>
+                  <p className="text-gray-600 dark:text-gray-300 mt-2">{t.welcome}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Lock className="h-4 w-4 text-green-500" />
+                <span className="text-green-600 dark:text-green-400">End-to-End Encrypted</span>
               </div>
             </div>
+          </div>
 
-            {error && (
-              <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/50">
-                <AlertDescription className="text-red-600 dark:text-red-400">{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {success && (
-              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/50">
-                <AlertDescription className="text-green-600 dark:text-green-400">{success}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button
-              onClick={handleAuth}
-              className={`w-full ${buttonStyle} bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700`}
-              disabled={loading}
-            >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                  {t.connecting}
-                </div>
-              ) : isLoginMode ? (
-                t.login
-              ) : (
-                t.register
-              )}
-            </Button>
-
-            <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-              <p>
-                {isLoginMode ? "Нет аккаунта?" : "Есть аккаунт?"}{" "}
-                <button
-                  onClick={() => setIsLoginMode(!isLoginMode)}
-                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                >
-                  {isLoginMode ? t.register : t.login}
-                </button>
-              </p>
+          <div className="p-4 space-y-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                {t.email}
+              </div>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={formData.email}
+                onChange={(e) => handleInputChange("email", e.target.value)}
+                className={inputStyle}
+              />
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4" />
+                {t.password}
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={formData.password}
+                  onChange={(e) => handleInputChange("password", e.target.value)}
+                  className={`${inputStyle} pr-10`}
+                />
+                <button
+                  type="button"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Mail className="h-4 w-4" />
+              {t.email}
+            </div>
+            <div className="flex gap-1">
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  className={`${buttonStyle} ${language === lang.code ? "bg-blue-600 text-white" : "bg-white/20 text-white"}`}
+                  onClick={() => setLanguage(lang.code as "uz" | "ru" | "en")}
+                >
+                  {lang.flag}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800">
+              <p className="text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/50 border border-green-200 dark:border-green-800">
+              <p className="text-green-600 dark:text-green-400">{success}</p>
+            </div>
+          )}
+
+          <button
+            onClick={handleAuth}
+            className={`w-full ${buttonStyle} bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700`}
+            disabled={loading}
+          >
+            {loading ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                {t.connecting}
+              </div>
+            ) : isLoginMode ? (
+              t.login
+            ) : (
+              t.register
+            )}
+          </button>
+
+          <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+            <p>
+              {isLoginMode ? "Нет аккаунта?" : "Есть аккаунт?"}{" "}
+              <button
+                onClick={() => setIsLoginMode(!isLoginMode)}
+                className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              >
+                {isLoginMode ? t.register : t.login}
+              </button>
+            </p>
+          </div>
+        </div>
       </div>
     )
   }
@@ -1138,97 +1060,10 @@ export default function ActogramChat() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="bg-white/20 text-white border-0">
-                  {currentUser?.username}
-                </Badge>
-                <Dialog open={showSettings} onOpenChange={setShowSettings}>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className={`${cardStyle} max-w-md`}>
-                    <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2">
-                        <Settings className="h-5 w-5" />
-                        {t.settings}
-                      </DialogTitle>
-                    </DialogHeader>
-                    <Tabs defaultValue="profile" className="w-full">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="profile">{t.profile}</TabsTrigger>
-                        <TabsTrigger value="settings">{t.settings}</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="profile" className="space-y-4">
-                        <div className="flex items-center gap-4">
-                          <Avatar className="h-16 w-16">
-                            <AvatarImage src={currentUser?.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="text-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                              {currentUser?.username?.charAt(1)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <h3 className="font-semibold">{currentUser?.fullName}</h3>
-                            <p className="text-sm text-gray-500">{currentUser?.username}</p>
-                            <p className="text-sm text-green-500 flex items-center gap-1">
-                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                              {t.online}
-                            </p>
-                          </div>
-                        </div>
-                        <Button onClick={handleLogout} variant="destructive" className="w-full">
-                          {t.logout}
-                        </Button>
-                      </TabsContent>
-                      <TabsContent value="settings" className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Label>{t.darkMode}</Label>
-                            <p className="text-sm text-gray-500">Переключить тему</p>
-                          </div>
-                          <Switch
-                            checked={darkMode}
-                            onCheckedChange={(checked) => {
-                              setDarkMode(checked)
-                              saveSettings()
-                            }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Label>{t.notifications}</Label>
-                            <p className="text-sm text-gray-500">Уведомления о сообщениях</p>
-                          </div>
-                          <Switch
-                            checked={notifications}
-                            onCheckedChange={(checked) => {
-                              setNotifications(checked)
-                              saveSettings()
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>{t.language}</Label>
-                          <div className="flex gap-2">
-                            {languages.map((lang) => (
-                              <Button
-                                key={lang.code}
-                                variant={language === lang.code ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => {
-                                  setLanguage(lang.code as "uz" | "ru" | "en")
-                                  saveSettings()
-                                }}
-                              >
-                                {lang.flag} {lang.name}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      </TabsContent>
-                    </Tabs>
-                  </DialogContent>
-                </Dialog>
+                <div className="flex items-center gap-2">
+                  <Shield className="h-6 w-6" />
+                  Доступ ограничен
+                </div>
               </div>
             </div>
           </div>
@@ -1237,64 +1072,48 @@ export default function ActogramChat() {
           <div className="p-3 border-b space-y-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
+              <input
                 placeholder={t.search}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`pl-10 ${inputStyle}`}
               />
             </div>
-            <Dialog open={showUserSearch} onOpenChange={setShowUserSearch}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className={`w-full ${buttonStyle}`}>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  {t.newChat}
-                </Button>
-              </DialogTrigger>
-              <DialogContent className={cardStyle}>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <UserPlus className="h-5 w-5" />
-                    {t.searchUsers}
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      placeholder="@username или имя"
-                      onChange={(e) => searchUsers(e.target.value)}
-                      className={`pl-10 ${inputStyle}`}
-                    />
-                  </div>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {searchResults.map((user) => (
-                      <div
-                        key={user.id}
-                        onClick={() => startPrivateChat(user)}
-                        className={`flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-all duration-200 ${buttonStyle}`}
-                      >
-                        <Avatar>
-                          <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                            {user.username?.charAt(1)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium">{user.username}</h4>
-                            {user.isVerified && <Star className="h-3 w-3 text-yellow-500" />}
-                          </div>
-                          <p className="text-sm text-gray-500">{user.username}</p>
-                          {user.bio && <p className="text-xs text-gray-400 truncate">{user.bio}</p>}
-                        </div>
-                        <div className={`w-3 h-3 rounded-full ${user.isOnline ? "bg-green-500" : "bg-gray-300"}`} />
+            <div className={`${cardStyle}`}>
+              <div className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4 mr-2" />
+                {t.newChat}
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <input
+                  placeholder="@username или имя"
+                  onChange={(e) => searchUsers(e.target.value)}
+                  className={`pl-10 ${inputStyle}`}
+                />
+              </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {searchResults.map((user) => (
+                  <div
+                    key={user.id}
+                    onClick={() => startPrivateChat(user)}
+                    className={`flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-all duration-200 ${buttonStyle}`}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium">{user.username}</h4>
+                        {user.isVerified && <Star className="h-3 w-3 text-yellow-500" />}
                       </div>
-                    ))}
+                      <p className="text-sm text-gray-500">{user.username}</p>
+                      {user.bio && <p className="text-xs text-gray-400 truncate">{user.bio}</p>}
+                    </div>
+                    <div className={`w-3 h-3 rounded-full ${user.isOnline ? "bg-green-500" : "bg-gray-300"}`} />
                   </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Список чатов */}
@@ -1318,12 +1137,9 @@ export default function ActogramChat() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={chat.avatar || "/placeholder.svg"} />
-                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                          {chat.isGroup ? <Users className="h-5 w-5" /> : chatAvatarFallback}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                        <MessageCircle className="h-6 w-6 text-white" />
+                      </div>
                       {!chat.isGroup && (
                         <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full" />
                       )}
@@ -1360,7 +1176,7 @@ export default function ActogramChat() {
                           </span>
                         </div>
                         {chat.unreadCount > 0 && (
-                          <Badge className="bg-blue-500 text-white animate-pulse">{chat.unreadCount}</Badge>
+                          <span className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium">{chat.unreadCount}</span>
                         )}
                       </div>
                     </div>
@@ -1379,33 +1195,16 @@ export default function ActogramChat() {
               <div className={`p-4 ${cardStyle} border-b flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
                   {isMobile && (
-                    <Button variant="ghost" size="icon" onClick={() => setShowSidebar(true)}>
+                    <button
+                      onClick={() => setShowSidebar(true)}
+                      className={`${buttonStyle}`}
+                    >
                       <ArrowLeft className="h-4 w-4" />
-                    </Button>
+                    </button>
                   )}
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage 
-                      src={
-                        selectedChat.type === "private" 
-                          ? (() => {
-                              const otherUser = selectedChat.participants.find((u) => u.id !== currentUser?.id)
-                              return otherUser?.avatar || selectedChat.avatar || "/placeholder.svg"
-                            })()
-                          : selectedChat.avatar || "/placeholder.svg"
-                      } 
-                    />
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                      {selectedChat.isGroup ? (
-                        <Users className="h-5 w-5" />
-                      ) : (
-                        (() => {
-                          const otherUser = selectedChat.participants.find((u) => u.id !== currentUser?.id)
-                          const displayName = otherUser?.username || selectedChat.name
-                          return displayName.charAt(0)
-                        })()
-                      )}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <MessageCircle className="h-5 w-5 text-white" />
+                  </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="font-semibold">
@@ -1429,38 +1228,38 @@ export default function ActogramChat() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className={buttonStyle}>
+                  <button className={buttonStyle}>
                     <Phone className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className={buttonStyle}>
+                  </button>
+                  <button className={buttonStyle}>
                     <Video className="h-4 w-4" />
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className={buttonStyle}>
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className={cardStyle}>
-                      <DropdownMenuItem>
-                        <Info className="h-4 w-4 mr-2" />
-                        Информация о чате
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Star className="h-4 w-4 mr-2" />
-                        Закрепить чат
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Bell className="h-4 w-4 mr-2" />
-                        Отключить уведомления
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Очистить чат
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  </button>
+                  <div className="relative">
+                    <button className={buttonStyle}>
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                    <div className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5`}>
+                      <div className="py-1">
+                        <button className="flex w-full items-center px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                          <Info className="h-4 w-4 mr-2" />
+                          Информация о чате
+                        </button>
+                        <button className="flex w-full items-center px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                          <Star className="h-4 w-4 mr-2" />
+                          Закрепить чат
+                        </button>
+                        <button className="flex w-full items-center px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                          <Bell className="h-4 w-4 mr-2" />
+                          Отключить уведомления
+                        </button>
+                        <div className="border-t border-gray-200 dark:border-gray-700" />
+                        <button className="flex w-full items-center px-2 py-2 text-sm text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900">
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Очистить чат
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1524,39 +1323,35 @@ export default function ActogramChat() {
                               })}
                             </span>
                             {message.isEncrypted && <Lock className="h-3 w-3 opacity-70" />}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <MoreVertical className="h-3 w-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className={cardStyle}>
-                                <DropdownMenuItem onClick={() => setReplyingTo(message)}>
-                                  <Reply className="h-4 w-4 mr-2" />
-                                  {t.reply}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(message.content)}>
-                                  <Copy className="h-4 w-4 mr-2" />
-                                  {t.copy}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <div className="flex gap-1 p-2">
-                                  {reactionEmojis.slice(0, 5).map((emoji) => (
-                                    <button
-                                      key={emoji}
-                                      onClick={() => addReaction(message.id, emoji)}
-                                      className="hover:scale-125 transition-transform"
-                                    >
-                                      {emoji}
-                                    </button>
-                                  ))}
+                            <div className="relative">
+                              <button className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <MoreVertical className="h-3 w-3" />
+                              </button>
+                              <div className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5`}>
+                                <div className="py-1">
+                                  <button className="flex w-full items-center px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <Reply className="h-4 w-4 mr-2" />
+                                    {t.reply}
+                                  </button>
+                                  <button className="flex w-full items-center px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    {t.copy}
+                                  </button>
+                                  <div className="border-t border-gray-200 dark:border-gray-700" />
+                                  <div className="flex gap-1 p-2">
+                                    {reactionEmojis.slice(0, 5).map((emoji) => (
+                                      <button
+                                        key={emoji}
+                                        onClick={() => addReaction(message.id, emoji)}
+                                        className="hover:scale-125 transition-transform"
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1601,9 +1396,9 @@ export default function ActogramChat() {
                         <p className="text-gray-600 truncate max-w-xs">{replyingTo.content}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setReplyingTo(null)}>
+                    <button onClick={() => setReplyingTo(null)} className="h-4 w-4">
                       <X className="h-4 w-4" />
-                    </Button>
+                    </button>
                   </div>
                 </div>
               )}
@@ -1612,16 +1407,14 @@ export default function ActogramChat() {
               <div className={`p-4 ${cardStyle} border-t`}>
                 <div className="flex items-center gap-2">
                   <input type="file" ref={fileInputRef} className="hidden" accept="*/*" />
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  <button
                     onClick={() => fileInputRef.current?.click()}
                     className={buttonStyle}
                   >
                     <Paperclip className="h-4 w-4" />
-                  </Button>
+                  </button>
                   <div className="flex-1 relative">
-                    <Input
+                    <input
                       ref={messageInputRef}
                       placeholder={`${t.send}...`}
                       value={newMessage}
@@ -1636,18 +1429,18 @@ export default function ActogramChat() {
                       disabled={!isConnected}
                     />
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <button className="h-8 w-8 p-0">
                         <Smile className="h-4 w-4" />
-                      </Button>
+                      </button>
                     </div>
                   </div>
-                  <Button
+                  <button
                     onClick={sendMessage}
                     disabled={!newMessage.trim() || !isConnected}
                     className={`${buttonStyle} bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700`}
                   >
                     <Send className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                   <div className="flex items-center gap-2">
@@ -1674,10 +1467,13 @@ export default function ActogramChat() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-6">
                 {isMobile && (
-                  <Button onClick={() => setShowSidebar(true)} className={`mb-4 ${buttonStyle}`}>
+                  <button
+                    onClick={() => setShowSidebar(true)}
+                    className={`mb-4 ${buttonStyle}`}
+                  >
                     <Menu className="h-4 w-4 mr-2" />
                     Чаты
-                  </Button>
+                  </button>
                 )}
                 <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-2xl">
                   <MessageCircle className="h-16 w-16 text-white" />
