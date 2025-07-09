@@ -364,7 +364,6 @@ const AuthForm: React.FC<{ onAuthSuccess: (token: string, user: any) => void }> 
 // 1. Функция для проверки "Actogram"-чата
 const isNewsChat = (chat: Chat | null) => chat && chat.name === 'Actogram';
 const isSavedChat = (chat: Chat | null) => chat && chat.name === 'Избранное';
-
 // 2. Для readBy (двойные галочки)
 const isMessageRead = (message: Message, chat: Chat | null, user: User | null) => {
   if (isSavedChat(chat)) return true;
@@ -422,7 +421,7 @@ export default function ChatPage() {
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -771,76 +770,46 @@ export default function ChatPage() {
         }`}>
           
           {/* Header */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <button className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                  <MessageCircle className="h-6 w-6 text-white" />
-                </button>
-                <div>
-                  <h1 className="text-xl font-semibold text-gray-900 dark:text-white">ACTOGRAM</h1>
-                  <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-                    {isConnected ? (
-                      <>
-                        <Wifi className="h-3 w-3 text-green-500" />
-                        <span>Подключено</span>
-                      </>
-                    ) : (
-                      <>
-                        <WifiOff className="h-3 w-3 text-red-500" />
-                        <span>Нет соединения</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setDarkMode(!darkMode)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </button>
-                {user ? (
-                  <button 
-                    onClick={() => setShowSearch(!showSearch)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => setShowAuth(true)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <LogIn className="h-4 w-4" />
-                  </button>
-                )}
-                {user && (
-                  <button 
-                    onClick={handleLogout}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                  </button>
-                )}
-                <button onClick={() => setShowSettings(true)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                  <Settings className="h-4 w-4" />
-                </button>
-              </div>
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                <MessageCircle className="h-6 w-6 text-white" />
+              </button>
+              <span className="text-lg font-semibold text-gray-100">Actogram</span>
             </div>
-            
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Поиск"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="flex items-center gap-2">
+              {isConnected ? (
+                <>
+                  <Wifi className="h-3 w-3 text-green-500" />
+                  <span className="text-xs text-green-500">Онлайн</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3 w-3 text-red-500" />
+                  <span className="text-xs text-red-500">Оффлайн</span>
+                </>
+              )}
+              {user && (
+                <button onClick={handleLogout} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
+              <button onClick={() => setShowSettings(true)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <Settings className="h-4 w-4" />
+              </button>
             </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              type="text"
+              placeholder="Поиск"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           {/* User Search Results */}
@@ -1196,19 +1165,16 @@ export default function ChatPage() {
             <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Настройки</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-700 dark:text-gray-300">Тёмная тема</span>
+                <span className="text-gray-700 dark:text-gray-300">Тема</span>
                 <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-6 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center px-1">
                   <span className={`inline-block w-4 h-4 rounded-full transition-transform ${darkMode ? 'bg-blue-500 translate-x-4' : 'bg-gray-400 translate-x-0'}`}></span>
                 </button>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ваш ник</label>
-                <div className="flex gap-2">
-                  <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                  <button onClick={() => handleChangeNick({ newUsername, setNickError, setNickSuccess, setUser, user, token })} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">Сменить</button>
+                <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white select-all">
+                  {user?.username || '—'}
                 </div>
-                {nickError && <div className="text-red-500 text-xs mt-1">{nickError}</div>}
-                {nickSuccess && <div className="text-green-600 text-xs mt-1">{nickSuccess}</div>}
               </div>
             </div>
           </div>
