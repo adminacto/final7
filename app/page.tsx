@@ -69,6 +69,7 @@ interface Message {
     content: string
     senderName: string
   }
+  readBy?: string[] // Для двойных галочек
 }
 
 interface Chat {
@@ -360,249 +361,311 @@ const AuthForm: React.FC<{ onAuthSuccess: (token: string, user: any) => void }> 
   );
 };
 
-export default function ChatPage() {
-  const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [chats, setChats] = useState<Chat[]>(mockChats)
-  const [selectedChat, setSelectedChat] = useState<Chat | null>(mockChats[0])
-  const [messages, setMessages] = useState<Message[]>(mockMessages)
-  const [newMessage, setNewMessage] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  const [showSidebar, setShowSidebar] = useState(true)
-  const [typingUsers, setTypingUsers] = useState<string[]>([])
-  const [darkMode, setDarkMode] = useState(true) // По умолчанию ночная тема
-  const [isConnected, setIsConnected] = useState(true)
-  const [socket, setSocket] = useState<Socket | null>(null)
-  const [showAuth, setShowAuth] = useState(false)
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
-  const [authData, setAuthData] = useState({
-    email: '',
-    password: '',
-    username: '',
-    fullName: ''
-  })
-  const [searchResults, setSearchResults] = useState<User[]>([])
-  const [showSearch, setShowSearch] = useState(false)
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+// 1. Функция для проверки "Actogram"-чата
+const isNewsChat = (chat: Chat | null) => chat && chat.name === 'Actogram';
+const isSavedChat = (chat: Chat | null) => chat && chat.name === 'Избранное';
 
-  // Check for existing token on load
-  useEffect(() => {
-    const savedToken = localStorage.getItem('actogram_token')
-    const savedUser = localStorage.getItem('actogram_user')
-    
-    if (savedToken && savedUser) {
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
-      setShowAuth(false)
-    }
-  }, [])
-
-  // Initialize socket connection
-  useEffect(() => {
-    if (token && user) {
-      const newSocket = io(API_BASE, {
-        auth: { token }
-      })
-
-      newSocket.on('connect', () => {
-        console.log('Connected to server')
-        setIsConnected(true)
-      })
-
-      newSocket.on('disconnect', () => {
-        console.log('Disconnected from server')
-        setIsConnected(false)
-      })
-
-      newSocket.on('my_chats', (chatList: Chat[]) => {
-        if (chatList.length > 0) {
-          setChats(chatList)
-          setSelectedChat(chatList[0])
-        }
-      })
-
-      newSocket.on('chat_messages', (data: { chatId: string; messages: Message[] }) => {
-        if (selectedChat?.id === data.chatId) {
-          setMessages(data.messages)
-        }
-      })
-
-      newSocket.on('new_message', (message: Message) => {
-        if (selectedChat?.id === message.chatId) {
-          setMessages(prev => [...prev, message])
-        }
-        // Update chat list with new message
-        setChats(prev => prev.map(chat => {
-          if (chat.id === message.chatId) {
-            return { ...chat, lastMessage: message }
-          }
-          return chat
-        }))
-      })
-
-      newSocket.on('user_typing', (data: { userId: string; username: string; chatId: string }) => {
-        if (selectedChat?.id === data.chatId) {
-          setTypingUsers(prev => [...prev, data.username])
-        }
-      })
-
-      newSocket.on('user_stop_typing', (data: { userId: string; chatId: string }) => {
-        if (selectedChat?.id === data.chatId) {
-          setTypingUsers(prev => prev.filter(name => name !== data.userId))
-        }
-      })
-
-      newSocket.on('search_results', (results: User[]) => {
-        setSearchResults(results)
-      })
-
-      setSocket(newSocket)
-
-      // Get user's chats
-      newSocket.emit('get_my_chats', user.id)
-
-      return () => {
-        newSocket.disconnect()
-      }
-    }
-  }, [token, user])
-
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 768
-      setIsMobile(mobile)
-      setShowSidebar(!mobile)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode)
-  }, [darkMode])
-
-  const handleAuth = async (mode: 'login' | 'register') => {
-    try {
-      const response = await fetch(`${API_BASE}/api/auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: mode,
-          ...authData
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setToken(data.token)
-        setUser(data.user)
-        setShowAuth(false)
-        localStorage.setItem('actogram_token', data.token)
-        localStorage.setItem('actogram_user', JSON.stringify(data.user))
-      } else {
-        alert(data.error || 'Ошибка авторизации')
-      }
-    } catch (error) {
-      console.error('Auth error:', error)
-      alert('Ошибка подключения к серверу')
-    }
+// 2. Для readBy (двойные галочки)
+const isMessageRead = (message: Message, chat: Chat | null, user: User | null) => {
+  if (isSavedChat(chat)) return true;
+  if (!message.readBy || !user) return false;
+  // Для приватных чатов: если прочитал собеседник
+  if (chat && chat.participants.length === 2) {
+    const other = chat.participants.find(u => u.id !== user.id);
+    return message.readBy.includes(other?.id);
   }
+  // Для групп — если все кроме отправителя прочитали
+  if (chat && chat.isGroup) {
+    return chat.participants.filter(u => u.id !== message.senderId).every(u => message.readBy?.includes(u.id));
+  }
+  return false;
+};
+
+// 4. Для смены ника
+async function handleChangeNick({ newUsername, setNickError, setNickSuccess, setUser, user, token }: { newUsername: string, setNickError: (v: string|null) => void, setNickSuccess: (v: string|null) => void, setUser: any, user: any, token: string|null }) {
+  setNickError(null); setNickSuccess(null);
+  if (!newUsername.startsWith('@') || newUsername.length < 4) {
+    setNickError('Username должен начинаться с @ и быть не короче 4 символов');
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'update_username', username: newUsername })
+    });
+    const data = await res.json();
+    if (data.success) {
+      setUser((prev: any) => ({ ...prev, username: newUsername }));
+      localStorage.setItem('actogram_user', JSON.stringify({ ...user, username: newUsername }));
+      setNickSuccess('Ник успешно изменён!');
+    } else {
+      setNickError(data.error || 'Ошибка смены ника');
+    }
+  } catch {
+    setNickError('Ошибка подключения к серверу');
+  }
+}
+
+export default function ChatPage() {
+  const [token, setToken] = useState<string | null>(localStorage.getItem('actogram_token'));
+  const [user, setUser] = useState<User | null>(JSON.parse(localStorage.getItem('actogram_user') || 'null'));
+  const [chats, setChats] = useState<Chat[]>(mockChats);
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [nickError, setNickError] = useState<string | null>(null);
+  const [nickSuccess, setNickSuccess] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    const socket = io('https://actogr.onrender.com', { transports: ['websocket'] });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setIsConnected(true);
+      console.log('Socket connected');
+      if (user) {
+        socket.emit('user_connected', user.id);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+      console.log('Socket disconnected');
+    });
+
+    socket.on('new_message', (message: Message) => {
+      setChats(prev => {
+        const updatedChats = prev.map(chat => {
+          if (chat.id === message.chatId) {
+            return {
+              ...chat,
+              lastMessage: message,
+              unreadCount: chat.unreadCount + 1
+            };
+          }
+          return chat;
+        });
+        const chat = updatedChats.find(c => c.id === message.chatId);
+        if (chat) {
+          setSelectedChat(chat);
+        }
+        return updatedChats;
+      });
+      setMessages(prev => [...prev, message]);
+    });
+
+    socket.on('chat_updated', (chat: Chat) => {
+      setChats(prev => {
+        const exists = prev.find(c => c.id === chat.id);
+        if (exists) {
+          return prev.map(c => c.id === chat.id ? chat : c);
+        }
+        return [...prev, chat];
+      });
+      const updatedChat = chats.find(c => c.id === chat.id);
+      if (updatedChat) {
+        setSelectedChat(updatedChat);
+      }
+    });
+
+    socket.on('user_connected', (userId: string) => {
+      setChats(prev => prev.map(chat => {
+        if (chat.isGroup) {
+          return {
+            ...chat,
+            participants: chat.participants.map(p => p.id === userId ? { ...p, isOnline: true } : p)
+          };
+        }
+        return chat;
+      }));
+    });
+
+    socket.on('user_disconnected', (userId: string) => {
+      setChats(prev => prev.map(chat => {
+        if (chat.isGroup) {
+          return {
+            ...chat,
+            participants: chat.participants.map(p => p.id === userId ? { ...p, isOnline: false } : p)
+          };
+        }
+        return chat;
+      }));
+    });
+
+    socket.on('typing_start', (userId: string) => {
+      setTypingUsers(prev => {
+        if (prev.includes(userId)) return prev;
+        return [...prev, userId];
+      });
+    });
+
+    socket.on('typing_stop', (userId: string) => {
+      setTypingUsers(prev => prev.filter(id => id !== userId));
+    });
+
+    socket.on('new_private_chat', (chat: Chat) => {
+      setChats(prev => {
+        const exists = prev.find(c => c.id === chat.id);
+        if (exists) return prev;
+        return [chat, ...prev];
+      });
+      setSelectedChat(chat);
+    });
+
+    socket.on('error', (error: string) => {
+      console.error('Socket error:', error);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user, chats]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize(); // Set initial value
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (selectedChat) {
+      const messages: Message[] = [];
+      mockMessages.forEach(msg => {
+        if (msg.chatId === selectedChat.id) {
+          messages.push(msg);
+        }
+      });
+      setMessages(messages);
+    }
+  }, [selectedChat]);
 
   const handleLogout = () => {
-    setToken(null)
-    setUser(null)
-    setChats(mockChats)
-    setSelectedChat(mockChats[0])
-    setMessages(mockMessages)
-    setShowAuth(false)
-    localStorage.removeItem('actogram_token')
-    localStorage.removeItem('actogram_user')
-    if (socket) {
-      socket.disconnect()
-      setSocket(null)
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('actogram_token');
+    localStorage.removeItem('actogram_user');
+  };
+
+  const handleSearchUsers = async (query: string) => {
+    setSearchQuery(query);
+    if (query.length < 3) {
+      setSearchResults([]);
+      return;
     }
-  }
+    try {
+      const res = await fetch(`${API_BASE}/api/users/search?q=${query}`);
+      const data = await res.json();
+      setSearchResults(data.users);
+    } catch (err) {
+      console.error('Error searching users:', err);
+      setSearchResults([]);
+    }
+  };
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedChat) return
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && newMessage.trim() && !isNewsChat(selectedChat)) {
+      handleSendMessage();
+    }
+  };
 
-    if (socket && user) {
-      // Отправка через Socket.IO если подключен
-      const messageData = {
-        chatId: selectedChat.id,
-        content: newMessage.trim(),
-        type: 'text',
-        isEncrypted: false
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || isNewsChat(selectedChat)) return;
+    const message: Message = {
+      id: `msg_${Date.now()}`,
+      senderId: user?.id || '',
+      senderName: user?.username || 'Me',
+      content: newMessage,
+      timestamp: new Date(),
+      type: 'text',
+      isRead: false,
+      chatId: selectedChat?.id
+    };
+    setMessages(prev => [...prev, message]);
+    setNewMessage('');
+    setTypingUsers([]);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          content: message.content,
+          chatId: message.chatId,
+          senderId: message.senderId,
+          senderName: message.senderName
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        socketRef.current?.emit('new_message', data.message);
+      } else {
+        console.error('Error sending message:', data.error);
       }
-      socket.emit('send_message', messageData)
-    } else {
-      // Fallback на моковые данные
-      const message: Message = {
-        id: Date.now().toString(),
-        senderId: 'me',
-        senderName: 'Вы',
-        content: newMessage.trim(),
-        timestamp: new Date(),
-        type: 'text',
-        isRead: false
-      }
-      setMessages(prev => [...prev, message])
+    } catch (err) {
+      console.error('Error sending message:', err);
     }
-    
-    setNewMessage('')
-  }
+  };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        const message: Message = {
+          id: `msg_${Date.now()}`,
+          senderId: user?.id || '',
+          senderName: user?.username || 'Me',
+          content: data.url, // URL файла
+          timestamp: new Date(),
+          type: 'image', // Или 'file'
+          isRead: false,
+          chatId: selectedChat?.id
+        };
+        setMessages(prev => [...prev, message]);
+        setNewMessage('');
+        setTypingUsers([]);
+        socketRef.current?.emit('new_message', message);
+      } else {
+        console.error('Error uploading file:', data.error);
+      }
+    } catch (err) {
+      console.error('Error uploading file:', err);
     }
-  }
+  };
 
   const handleChatSelect = (chat: Chat) => {
-    setSelectedChat(chat)
-    if (isMobile) setShowSidebar(false)
-    
-    if (socket && user) {
-      socket.emit('join_chat', chat.id)
-      socket.emit('get_messages', { chatId: chat.id, userId: user.id })
-    }
-  }
-
-  const handleSearchUsers = (query: string) => {
-    if (socket && query.length >= 2) {
-      socket.emit('search_users', query)
-    } else {
-      setSearchResults([])
-    }
-  }
-
-  const handleCreatePrivateChat = (otherUser: User) => {
-    if (!socket || !user) return
-
-    const chatId = `private_${user.id}_${otherUser.id}`
-    
-    socket.emit('create_private_chat', {
-      userId: otherUser.id,
-      chatId,
-      createdBy: user.id
-    })
-    
-    setShowSearch(false)
-    setSearchQuery('')
-  }
+    setSelectedChat(chat);
+    setShowSearch(false);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('ru-RU', { 
@@ -959,7 +1022,7 @@ export default function ChatPage() {
                         
                         <div className="flex items-center gap-1">
                           {message.senderId === 'me' && (
-                            message.isRead ? (
+                            isMessageRead(message, selectedChat, user) ? (
                               <CheckCheck className="h-3 w-3 opacity-70" />
                             ) : (
                               <Check className="h-3 w-3 opacity-70" />
@@ -1011,11 +1074,12 @@ export default function ChatPage() {
                   <div className="flex-1 relative">
                     <input
                       type="text"
-                      placeholder="Сообщение"
+                      placeholder={isNewsChat(selectedChat) ? "Только для чтения" : "Сообщение"}
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
                       className="w-full px-4 py-2 pr-10 bg-gray-100 dark:bg-gray-700 rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                      disabled={isNewsChat(selectedChat)}
                     />
                     <button
                       onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -1029,6 +1093,7 @@ export default function ChatPage() {
                     <button
                       onClick={handleSendMessage}
                       className="w-9 h-9 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center transition-colors"
+                      disabled={isNewsChat(selectedChat) || !newMessage.trim()}
                     >
                       <Send className="h-4 w-4 text-white" />
                     </button>
@@ -1098,7 +1163,15 @@ export default function ChatPage() {
                   <span className={`inline-block w-4 h-4 rounded-full transition-transform ${darkMode ? 'bg-blue-500 translate-x-4' : 'bg-gray-400 translate-x-0'}`}></span>
                 </button>
               </div>
-              {/* Здесь можно добавить другие настройки */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ваш ник</label>
+                <div className="flex gap-2">
+                  <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                  <button onClick={() => handleChangeNick({ newUsername, setNickError, setNickSuccess, setUser, user, token })} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">Сменить</button>
+                </div>
+                {nickError && <div className="text-red-500 text-xs mt-1">{nickError}</div>}
+                {nickSuccess && <div className="text-green-600 text-xs mt-1">{nickSuccess}</div>}
+              </div>
             </div>
           </div>
         </div>
