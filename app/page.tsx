@@ -2,19 +2,19 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { io, Socket } from 'socket.io-client'
-import {
-  MessageCircle,
-  Search,
-  Send,
-  Phone,
-  Video,
-  MoreVertical,
-  Paperclip,
+import { 
+  MessageCircle, 
+  Search, 
+  Send, 
+  Phone, 
+  Video, 
+  MoreVertical, 
+  Paperclip, 
   Smile, 
-  ArrowLeft,
+  ArrowLeft, 
   Lock, 
   Shield, 
-  Star,
+  Star, 
   Check, 
   CheckCheck, 
   Mic, 
@@ -51,7 +51,6 @@ interface User {
   lastSeen: string
   bio?: string
   isVerified?: boolean
-  status?: string
 }
 
 interface Message {
@@ -62,6 +61,7 @@ interface Message {
   timestamp: Date
   type: 'text' | 'image' | 'file' | 'audio'
   isRead: boolean
+  chatId?: string
   reactions?: { emoji: string; count: number }[]
   isForwarded?: boolean
   replyTo?: {
@@ -69,7 +69,6 @@ interface Message {
     content: string
     senderName: string
   }
-  chatId?: string // Added for new_message event
 }
 
 interface Chat {
@@ -85,18 +84,168 @@ interface Chat {
   isPinned?: boolean
   isMuted?: boolean
   isArchived?: boolean
-  type?: string
-  description?: string
 }
+
+// Убрал лишние чаты, оставил только нужные
+const mockUsers: User[] = [
+  {
+    id: '1',
+    username: 'Telegram',
+    fullName: 'Telegram',
+    isOnline: true,
+    lastSeen: 'online',
+    bio: 'Служебные уведомления',
+    isVerified: true
+  },
+  {
+    id: '2',
+    username: 'tashanchi kirganini',
+    fullName: 'Tashanchi Kirganini',
+    isOnline: false,
+    lastSeen: '08:54',
+    bio: 'Designer'
+  },
+  {
+    id: '3',
+    username: 'Избранное',
+    fullName: 'Избранное',
+    isOnline: true,
+    lastSeen: 'online',
+    isVerified: true
+  },
+  {
+    id: '4',
+    username: 'FOZLJON 20k',
+    fullName: 'FOZLJON 20k',
+    isOnline: false,
+    lastSeen: '07:16'
+  }
+]
+
+const mockChats: Chat[] = [
+  {
+    id: '1',
+    name: 'Telegram',
+    unreadCount: 0,
+    isGroup: false,
+    participants: [mockUsers[0]],
+    isOnline: true,
+    isPinned: true,
+    lastMessage: {
+      id: '1',
+      senderId: '1',
+      senderName: 'Telegram',
+      content: 'Telegram Web A Digest Many new features and use...',
+      timestamp: new Date('2024-01-15T09:05:00'),
+      type: 'text',
+      isRead: true
+    }
+  },
+  {
+    id: '2',
+    name: 'tashanchi kirganini',
+    unreadCount: 0,
+    isGroup: false,
+    participants: [mockUsers[1]],
+    lastMessage: {
+      id: '2',
+      senderId: '2',
+      senderName: 'tashanchi kirganini',
+      content: '😊',
+      timestamp: new Date('2024-01-14T08:54:00'),
+      type: 'text',
+      isRead: true
+    }
+  },
+  {
+    id: '3',
+    name: 'Избранное',
+    unreadCount: 0,
+    isGroup: false,
+    participants: [mockUsers[2]],
+    lastMessage: {
+      id: '3',
+      senderId: '3',
+      senderName: 'Избранное',
+      content: 'FOREx',
+      timestamp: new Date('2024-01-14T08:37:00'),
+      type: 'text',
+      isRead: true
+    }
+  },
+  {
+    id: '4',
+    name: 'FOZLJON 20k',
+    unreadCount: 0,
+    isGroup: false,
+    participants: [mockUsers[3]],
+    lastMessage: {
+      id: '4',
+      senderId: '4',
+      senderName: 'FOZLJON 20k',
+      content: 'Nima',
+      timestamp: new Date('2024-01-14T07:16:00'),
+      type: 'text',
+      isRead: true
+    }
+  }
+]
+
+const mockMessages: Message[] = [
+  {
+    id: '1',
+    senderId: '1',
+    senderName: 'Telegram',
+    content: `📱 Messages.
+• Read-Time in Private Chats
+
+• You can now replace media when editing messages.
+• The app learned to preserve the selected mode for topics in groups.
+
+• Whenever you create a small group, Web A suggests a name for it based on users' name you have added.
+
+📢 Channels
+• Added custom channel reactions.
+• Implemented channel stories stats.
+• Channel emoji statuses.
+• Similar Channels.
+
+👥 Groups
+• 9 new features for groups.
+
+🤖 Bots
+• Edit your bots info right from their profile.
+
+📖 Stories
+• Added support for forwarded stories and channel posts in stories.
+
+✨ Extra
+• Giveaway Improvements: displaying winners list and additional prizes.
+
+March
+
+📢 Channels
+• Admins will soon be able to launch giveaways in their channels.
+
+✨ Extra
+• Added support for Emoji v15.1.
+• Some design enhancements for shared contacts, links preview and more.`,
+    timestamp: new Date('2024-01-15T09:05:00'),
+    type: 'text',
+    isRead: true
+  }
+]
+
+const reactionEmojis = ['❤️', '👍', '😂', '😮', '😢', '😡', '🔥', '👏', '🎉', '💯']
 
 const API_BASE = 'https://actogr.onrender.com'
 
 export default function ChatPage() {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
-  const [chats, setChats] = useState<Chat[]>([])
-  const [selectedChat, setSelectedChat] = useState<Chat | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [chats, setChats] = useState<Chat[]>(mockChats)
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(mockChats[0])
+  const [messages, setMessages] = useState<Message[]>(mockMessages)
   const [newMessage, setNewMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -104,9 +253,9 @@ export default function ChatPage() {
   const [showSidebar, setShowSidebar] = useState(true)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [darkMode, setDarkMode] = useState(false)
-  const [isConnected, setIsConnected] = useState(false)
+  const [isConnected, setIsConnected] = useState(true)
   const [socket, setSocket] = useState<Socket | null>(null)
-  const [showAuth, setShowAuth] = useState(true)
+  const [showAuth, setShowAuth] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [authData, setAuthData] = useState({
     email: '',
@@ -150,7 +299,10 @@ export default function ChatPage() {
       })
 
       newSocket.on('my_chats', (chatList: Chat[]) => {
-        setChats(chatList)
+        if (chatList.length > 0) {
+          setChats(chatList)
+          setSelectedChat(chatList[0])
+        }
       })
 
       newSocket.on('chat_messages', (data: { chatId: string; messages: Message[] }) => {
@@ -251,10 +403,10 @@ export default function ChatPage() {
   const handleLogout = () => {
     setToken(null)
     setUser(null)
-    setChats([])
-    setSelectedChat(null)
-    setMessages([])
-    setShowAuth(true)
+    setChats(mockChats)
+    setSelectedChat(mockChats[0])
+    setMessages(mockMessages)
+    setShowAuth(false)
     localStorage.removeItem('actogram_token')
     localStorage.removeItem('actogram_user')
     if (socket) {
@@ -264,16 +416,31 @@ export default function ChatPage() {
   }
 
   const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedChat || !socket) return
+    if (!newMessage.trim() || !selectedChat) return
 
-    const messageData = {
-      chatId: selectedChat.id,
-      content: newMessage.trim(),
-      type: 'text',
-      isEncrypted: false
+    if (socket && user) {
+      // Отправка через Socket.IO если подключен
+      const messageData = {
+        chatId: selectedChat.id,
+        content: newMessage.trim(),
+        type: 'text',
+        isEncrypted: false
+      }
+      socket.emit('send_message', messageData)
+    } else {
+      // Fallback на моковые данные
+      const message: Message = {
+        id: Date.now().toString(),
+        senderId: 'me',
+        senderName: 'Вы',
+        content: newMessage.trim(),
+        timestamp: new Date(),
+        type: 'text',
+        isRead: false
+      }
+      setMessages(prev => [...prev, message])
     }
-
-    socket.emit('send_message', messageData)
+    
     setNewMessage('')
   }
 
@@ -288,9 +455,9 @@ export default function ChatPage() {
     setSelectedChat(chat)
     if (isMobile) setShowSidebar(false)
     
-    if (socket) {
+    if (socket && user) {
       socket.emit('join_chat', chat.id)
-      socket.emit('get_messages', { chatId: chat.id, userId: user?.id })
+      socket.emit('get_messages', { chatId: chat.id, userId: user.id })
     }
   }
 
@@ -487,17 +654,31 @@ export default function ChatPage() {
                 >
                   {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 </button>
-                <button 
-                  onClick={() => setShowSearch(!showSearch)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-                <button 
-                  onClick={handleLogout}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <LogOut className="h-4 w-4" />
+                {user ? (
+                  <button 
+                    onClick={() => setShowSearch(!showSearch)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setShowAuth(true)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <LogIn className="h-4 w-4" />
+                  </button>
+                )}
+                {user && (
+                  <button 
+                    onClick={handleLogout}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                )}
+                <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <Settings className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -507,7 +688,7 @@ export default function ChatPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 type="text"
-                placeholder="Поиск чатов"
+                placeholder="Поиск"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -516,7 +697,7 @@ export default function ChatPage() {
           </div>
 
           {/* User Search Results */}
-          {showSearch && (
+          {showSearch && user && (
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="mb-3">
                 <input
@@ -552,88 +733,96 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
+            <button className="flex-1 py-3 text-sm font-medium text-blue-600 border-b-2 border-blue-600">
+              Все <span className="ml-1 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">{chats.length}</span>
+            </button>
+            <button className="flex-1 py-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+              Личные
+            </button>
+            <button className="flex-1 py-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+              Для вас
+            </button>
+            <button className="flex-1 py-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+              Новые <span className="ml-1 px-1.5 py-0.5 bg-blue-500 text-white rounded text-xs">{chats.filter(c => c.unreadCount > 0).length}</span>
+            </button>
+          </div>
+
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto">
-            {filteredChats.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Нет чатов</p>
-                <p className="text-sm">Начните общение с кем-нибудь</p>
-              </div>
-            ) : (
-              filteredChats.map((chat) => (
-                <div
-                  key={chat.id}
-                  onClick={() => handleChatSelect(chat)}
-                  className={`p-3 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                    selectedChat?.id === chat.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className={`w-12 h-12 bg-gradient-to-br ${getAvatarColor(chat.name)} rounded-full flex items-center justify-center shadow-sm`}>
-                        <span className="text-white font-semibold text-lg">
-                          {chat.name.charAt(0).toUpperCase()}
-                        </span>
+            {filteredChats.map((chat) => (
+              <div
+                key={chat.id}
+                onClick={() => handleChatSelect(chat)}
+                className={`p-3 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                  selectedChat?.id === chat.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className={`w-12 h-12 bg-gradient-to-br ${getAvatarColor(chat.name)} rounded-full flex items-center justify-center shadow-sm`}>
+                      <span className="text-white font-semibold text-lg">
+                        {chat.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    {chat.participants[0]?.isOnline && (
+                      <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></div>
+                    )}
+                    {chat.isPinned && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center">
+                        <Star className="h-2.5 w-2.5 text-white" />
                       </div>
-                      {chat.participants[0]?.isOnline && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></div>
-                      )}
-                      {chat.isPinned && (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center">
-                          <Star className="h-2.5 w-2.5 text-white" />
-                        </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                          {chat.name}
+                        </h3>
+                        {chat.participants[0]?.isVerified && (
+                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                            <Check className="h-2.5 w-2.5 text-white" />
+                          </div>
+                        )}
+                        {chat.isMuted && (
+                          <Bell className="h-3 w-3 text-gray-400" />
+                        )}
+                      </div>
+                      {chat.lastMessage && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatTime(chat.lastMessage.timestamp)}
+                        </span>
                       )}
                     </div>
                     
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-gray-900 dark:text-white truncate">
-                            {chat.name}
-                          </h3>
-                          {chat.participants[0]?.isVerified && (
-                            <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                              <Check className="h-2.5 w-2.5 text-white" />
-                            </div>
+                    {chat.lastMessage && (
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-gray-600 dark:text-gray-300 truncate flex-1">
+                          {chat.lastMessage.type === 'image' ? '📷 фотография' : chat.lastMessage.content}
+                        </p>
+                        <div className="flex items-center gap-1 ml-2">
+                          {chat.lastMessage.senderId === 'me' && (
+                            chat.lastMessage.isRead ? (
+                              <CheckCheck className="h-3 w-3 text-blue-500" />
+                            ) : (
+                              <Check className="h-3 w-3 text-gray-400" />
+                            )
                           )}
-                          {chat.isMuted && (
-                            <Bell className="h-3 w-3 text-gray-400" />
+                          {chat.unreadCount > 0 && (
+                            <span className="bg-blue-500 text-white px-1.5 py-0.5 rounded-full text-xs font-medium min-w-[18px] text-center">
+                              {chat.unreadCount}
+                            </span>
                           )}
                         </div>
-                        {chat.lastMessage && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatTime(chat.lastMessage.timestamp)}
-                          </span>
-                        )}
                       </div>
-                      
-                      {chat.lastMessage && (
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-gray-600 dark:text-gray-300 truncate flex-1">
-                            {chat.lastMessage.type === 'image' ? '📷 фотография' : chat.lastMessage.content}
-                          </p>
-                          <div className="flex items-center gap-1 ml-2">
-                            {chat.lastMessage.senderId === user?.id && (
-                              chat.lastMessage.isRead ? (
-                                <CheckCheck className="h-3 w-3 text-blue-500" />
-                              ) : (
-                                <Check className="h-3 w-3 text-gray-400" />
-                              )
-                            )}
-                            {chat.unreadCount > 0 && (
-                              <span className="bg-blue-500 text-white px-1.5 py-0.5 rounded-full text-xs font-medium min-w-[18px] text-center">
-                                {chat.unreadCount}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -703,59 +892,51 @@ export default function ChatPage() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
-                {messages.length === 0 ? (
-                  <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                    <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Нет сообщений</p>
-                    <p className="text-sm">Начните общение</p>
-                  </div>
-                ) : (
-                  messages.map((message) => (
+                {messages.map((message, index) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.senderId === 'me' ? 'justify-end' : 'justify-start'}`}
+                  >
                     <div
-                      key={message.id}
-                      className={`flex ${message.senderId === user?.id ? 'justify-end' : 'justify-start'}`}
+                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md group relative ${
+                        message.senderId === 'me'
+                          ? 'bg-blue-500 text-white ml-12'
+                          : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white mr-12'
+                      }`}
                     >
-                      <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md group relative ${
-                          message.senderId === user?.id
-                            ? 'bg-blue-500 text-white ml-12'
-                            : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white mr-12'
-                        }`}
-                      >
-                        {message.senderId !== user?.id && (
-                          <p className="text-xs font-semibold mb-1 text-blue-600 dark:text-blue-400">
-                            {message.senderName}
-                          </p>
-                        )}
-                        
-                        <div className="whitespace-pre-wrap break-words leading-relaxed text-sm">
-                          {message.content}
-                        </div>
-                        
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs opacity-70">
-                            {formatTime(message.timestamp)}
-                          </span>
-                          
-                          <div className="flex items-center gap-1">
-                            {message.senderId === user?.id && (
-                              message.isRead ? (
-                                <CheckCheck className="h-3 w-3 opacity-70" />
-                              ) : (
-                                <Check className="h-3 w-3 opacity-70" />
-                              )
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Reaction button */}
-                        <button className="absolute -bottom-2 right-2 w-5 h-5 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110">
-                          <Heart className="h-2.5 w-2.5 text-red-500" />
-                        </button>
+                      {message.senderId !== 'me' && (
+                        <p className="text-xs font-semibold mb-1 text-blue-600 dark:text-blue-400">
+                          {message.senderName}
+                        </p>
+                      )}
+                      
+                      <div className="whitespace-pre-wrap break-words leading-relaxed text-sm">
+                        {message.content}
                       </div>
+                      
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs opacity-70">
+                          {formatTime(message.timestamp)}
+                        </span>
+                        
+                        <div className="flex items-center gap-1">
+                          {message.senderId === 'me' && (
+                            message.isRead ? (
+                              <CheckCheck className="h-3 w-3 opacity-70" />
+                            ) : (
+                              <Check className="h-3 w-3 opacity-70" />
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Reaction button */}
+                      <button className="absolute -bottom-2 right-2 w-5 h-5 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110">
+                        <Heart className="h-2.5 w-2.5 text-red-500" />
+                      </button>
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
 
                 {typingUsers.length > 0 && (
                   <div className="flex justify-start">
