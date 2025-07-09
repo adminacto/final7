@@ -1,56 +1,67 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from 'react'
-import { io, Socket } from 'socket.io-client'
-import { 
-  MessageCircle, 
-  Search, 
-  Send, 
-  Phone, 
-  Video, 
-  MoreVertical, 
-  Paperclip, 
-  Smile, 
-  ArrowLeft, 
-  Lock, 
-  Shield, 
-  Star, 
-  Check, 
-  CheckCheck, 
-  Mic, 
+import { useState, useEffect, useRef } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import {
+  MessageCircle,
+  Users,
   Settings,
-  Plus,
-  Archive,
-  Bookmark,
-  Moon,
-  Sun,
-  Bell,
-  User,
-  Edit3,
-  Camera,
-  Image,
-  File,
-  MapPin,
-  Heart,
-  ThumbsUp,
-  Laugh,
-  Angry,
-  Zap,
+  Search,
+  Send,
+  Phone,
+  Video,
+  MoreVertical,
   Wifi,
   WifiOff,
-  LogIn,
-  LogOut
-} from 'lucide-react'
+  Paperclip,
+  UserPlus,
+  Eye,
+  EyeOff,
+  Shield,
+  Lock,
+  Mail,
+  Trash2,
+  Bell,
+  Copy,
+  Reply,
+  X,
+  Info,
+  Menu,
+  ArrowLeft,
+  Star,
+  Smile,
+  Zap,
+} from "lucide-react"
+import { io, type Socket } from "socket.io-client"
 
+// Интерфейсы
 interface User {
   id: string
   username: string
+  email: string
   fullName: string
   avatar?: string
-  isOnline: boolean
-  lastSeen: string
   bio?: string
-  isVerified?: boolean
+  isOnline: boolean
+  lastSeen: Date
+  isVerified: boolean
+  status: "online" | "away" | "busy" | "offline"
 }
 
 interface Message {
@@ -58,900 +69,1255 @@ interface Message {
   senderId: string
   senderName: string
   content: string
+  chatId: string
   timestamp: Date
-  type: 'text' | 'image' | 'file' | 'audio'
-  isRead: boolean
-  chatId?: string
-  reactions?: { emoji: string; count: number }[]
-  isForwarded?: boolean
+  type: "text" | "image" | "file" | "audio" | "video"
+  fileUrl?: string
+  fileName?: string
+  fileSize?: number
+  isEncrypted: boolean
+  reactions?: { emoji: string; userId: string; username: string }[]
   replyTo?: {
     id: string
     content: string
     senderName: string
   }
-  readBy?: string[] // Для двойных галочек
+  isEdited?: boolean
+  readBy?: string[]
 }
 
 interface Chat {
   id: string
   name: string
   avatar?: string
+  description?: string
   lastMessage?: Message
   unreadCount: number
   isGroup: boolean
   participants: User[]
-  isOnline?: boolean
-  lastSeen?: string
+  messageCount: number
+  type: "private" | "group" | "channel"
+  isEncrypted: boolean
+  createdBy: string
+  createdAt: Date
   isPinned?: boolean
   isMuted?: boolean
-  isArchived?: boolean
+  theme?: string
 }
 
-// Оставляю только нужных пользователей и переименовываю Telegram на Actogram
-const mockUsers: User[] = [
-  {
-    id: '1',
-    username: 'Actogram',
-    fullName: 'Actogram',
-    isOnline: true,
-    lastSeen: 'online',
-    bio: 'Служебные уведомления',
-    isVerified: true
+// Языки
+const languages = [
+  { code: "uz", name: "O'zbek", flag: "🇺🇿" },
+  { code: "ru", name: "Русский", flag: "🇷🇺" },
+  { code: "en", name: "English", flag: "🇺🇸" },
+]
+
+const translations = {
+  uz: {
+    appName: "ACTOGRAM",
+    welcome: "Xush kelibsiz",
+    login: "Kirish",
+    register: "Ro'yxatdan o'tish",
+    email: "Email",
+    password: "Parol",
+    username: "Foydalanuvchi nomi",
+    fullName: "To'liq ism",
+    bio: "Haqida",
+    online: "Onlayn",
+    offline: "Oflayn",
+    typing: "yozmoqda...",
+    send: "Yuborish",
+    search: "Qidirish...",
+    newChat: "Yangi chat",
+    settings: "Sozlamalar",
+    profile: "Profil",
+    darkMode: "Tungi rejim",
+    notifications: "Bildirishnomalar",
+    language: "Til",
+    save: "Saqlash",
+    cancel: "Bekor qilish",
+    delete: "O'chirish",
+    edit: "Tahrirlash",
+    reply: "Javob berish",
+    copy: "Nusxalash",
+    forward: "Yuborish",
+    pin: "Mahkamlash",
+    mute: "Ovozsiz",
+    archive: "Arxiv",
+    block: "Bloklash",
+    report: "Shikoyat",
+    logout: "Chiqish",
+    connecting: "Ulanmoqda...",
+    connected: "Ulandi",
+    disconnected: "Uzildi",
+    encrypted: "Shifrlangan",
+    verified: "Tasdiqlangan",
+    members: "a'zolar",
+    messages: "xabarlar",
+    noMessages: "Xabarlar yo'q",
+    startChat: "Suhbatni boshlang",
+    searchUsers: "Foydalanuvchilarni qidiring",
+    addMembers: "A'zolar qo'shish",
+    createGroup: "Guruh yaratish",
+    groupName: "Guruh nomi",
+    groupDescription: "Guruh tavsifi",
+    selectPhoto: "Rasm tanlash",
+    takePhoto: "Rasm olish",
+    chooseFromGallery: "Galereyadan tanlash",
+    uploadFile: "Fayl yuklash",
+    recording: "Yozib olish...",
+    playback: "Ijro etish",
+    fileSize: "Fayl hajmi",
+    downloading: "Yuklab olish...",
+    uploaded: "Yuklandi",
+    failed: "Xatolik",
+    retry: "Qayta urinish",
+    comingSoon: "Tez orada...",
+    beta: "Beta",
+    pro: "Pro",
+    premium: "Premium",
+    free: "Bepul",
   },
-  {
-    id: '3',
-    username: 'Избранное',
-    fullName: 'Избранное',
-    isOnline: true,
-    lastSeen: 'online',
-    isVerified: true
-  }
-]
-
-const mockChats: Chat[] = [
-  {
-    id: '1',
-    name: 'Actogram',
-    unreadCount: 0,
-    isGroup: false,
-    participants: [mockUsers[0]],
-    isOnline: true,
-    isPinned: true,
-    lastMessage: {
-      id: '1',
-      senderId: '1',
-      senderName: 'Actogram',
-      content: 'Actogram Web A Digest Many new features and use...',
-      timestamp: new Date('2024-01-15T09:05:00'),
-      type: 'text',
-      isRead: true
-    }
+  ru: {
+    appName: "ACTOGRAM",
+    welcome: "Добро пожаловать",
+    login: "Войти",
+    register: "Регистрация",
+    email: "Email",
+    password: "Пароль",
+    username: "Имя пользователя",
+    fullName: "Полное имя",
+    bio: "О себе",
+    online: "Онлайн",
+    offline: "Оффлайн",
+    typing: "печатает...",
+    send: "Отправить",
+    search: "Поиск...",
+    newChat: "Новый чат",
+    settings: "Настройки",
+    profile: "Профиль",
+    darkMode: "Темная тема",
+    notifications: "Уведомления",
+    language: "Язык",
+    save: "Сохранить",
+    cancel: "Отмена",
+    delete: "Удалить",
+    edit: "Редактировать",
+    reply: "Ответить",
+    copy: "Копировать",
+    forward: "Переслать",
+    pin: "Закрепить",
+    mute: "Без звука",
+    archive: "Архив",
+    block: "Заблокировать",
+    report: "Пожаловаться",
+    logout: "Выйти",
+    connecting: "Подключение...",
+    connected: "Подключено",
+    disconnected: "Отключено",
+    encrypted: "Зашифровано",
+    verified: "Подтвержден",
+    members: "участников",
+    messages: "сообщений",
+    noMessages: "Нет сообщений",
+    startChat: "Начните общение",
+    searchUsers: "Поиск пользователей",
+    addMembers: "Добавить участников",
+    createGroup: "Создать группу",
+    groupName: "Название группы",
+    groupDescription: "Описание группы",
+    selectPhoto: "Выбрать фото",
+    takePhoto: "Сделать фото",
+    chooseFromGallery: "Выбрать из галереи",
+    uploadFile: "Загрузить файл",
+    recording: "Запись...",
+    playback: "Воспроизведение",
+    fileSize: "Размер файла",
+    downloading: "Загрузка...",
+    uploaded: "Загружено",
+    failed: "Ошибка",
+    retry: "Повторить",
+    comingSoon: "Скоро...",
+    beta: "Бета",
+    pro: "Про",
+    premium: "Премиум",
+    free: "Бесплатно",
   },
-  {
-    id: '3',
-    name: 'Избранное',
-    unreadCount: 0,
-    isGroup: false,
-    participants: [mockUsers[1]],
-    lastMessage: {
-      id: '3',
-      senderId: '3',
-      senderName: 'Избранное',
-      content: 'FOREx',
-      timestamp: new Date('2024-01-14T08:37:00'),
-      type: 'text',
-      isRead: true
-    }
-  }
+  en: {
+    appName: "ACTOGRAM",
+    welcome: "Welcome",
+    login: "Login",
+    register: "Register",
+    email: "Email",
+    password: "Password",
+    username: "Username",
+    fullName: "Full Name",
+    bio: "Bio",
+    online: "Online",
+    offline: "Offline",
+    typing: "typing...",
+    send: "Send",
+    search: "Search...",
+    newChat: "New Chat",
+    settings: "Settings",
+    profile: "Profile",
+    darkMode: "Dark Mode",
+    notifications: "Notifications",
+    language: "Language",
+    save: "Save",
+    cancel: "Cancel",
+    delete: "Delete",
+    edit: "Edit",
+    reply: "Reply",
+    copy: "Copy",
+    forward: "Forward",
+    pin: "Pin",
+    mute: "Mute",
+    archive: "Archive",
+    block: "Block",
+    report: "Report",
+    logout: "Logout",
+    connecting: "Connecting...",
+    connected: "Connected",
+    disconnected: "Disconnected",
+    encrypted: "Encrypted",
+    verified: "Verified",
+    members: "members",
+    messages: "messages",
+    noMessages: "No messages",
+    startChat: "Start chatting",
+    searchUsers: "Search users",
+    addMembers: "Add members",
+    createGroup: "Create group",
+    groupName: "Group name",
+    groupDescription: "Group description",
+    selectPhoto: "Select photo",
+    takePhoto: "Take photo",
+    chooseFromGallery: "Choose from gallery",
+    uploadFile: "Upload file",
+    recording: "Recording...",
+    playback: "Playback",
+    fileSize: "File size",
+    downloading: "Downloading...",
+    uploaded: "Uploaded",
+    failed: "Failed",
+    retry: "Retry",
+    comingSoon: "Coming soon...",
+    beta: "Beta",
+    pro: "Pro",
+    premium: "Premium",
+    free: "Free",
+  },
+}
+
+// Эмодзи для реакций
+const reactionEmojis = ["❤️", "👍", "👎", "😂", "😮", "😢", "😡", "🔥", "👏", "🎉"]
+
+// Темы чата
+const chatThemes = [
+  { id: "default", name: "Default", colors: ["#3B82F6", "#1E40AF"] },
+  { id: "purple", name: "Purple", colors: ["#8B5CF6", "#5B21B6"] },
+  { id: "green", name: "Green", colors: ["#10B981", "#047857"] },
+  { id: "pink", name: "Pink", colors: ["#EC4899", "#BE185D"] },
+  { id: "orange", name: "Orange", colors: ["#F59E0B", "#D97706"] },
 ]
 
-const mockMessages: Message[] = [
-  {
-    id: '1',
-    senderId: '1',
-    senderName: 'Telegram',
-    content: `📱 Messages.
-• Read-Time in Private Chats
+// Утилиты шифрования
+const encryptMessage = (message: string): string => {
+  return btoa(unescape(encodeURIComponent(message)))
+}
 
-• You can now replace media when editing messages.
-• The app learned to preserve the selected mode for topics in groups.
-
-• Whenever you create a small group, Web A suggests a name for it based on users' name you have added.
-
-📢 Channels
-• Added custom channel reactions.
-• Implemented channel stories stats.
-• Channel emoji statuses.
-• Similar Channels.
-
-👥 Groups
-• 9 new features for groups.
-
-🤖 Bots
-• Edit your bots info right from their profile.
-
-📖 Stories
-• Added support for forwarded stories and channel posts in stories.
-
-✨ Extra
-• Giveaway Improvements: displaying winners list and additional prizes.
-
-March
-
-📢 Channels
-• Admins will soon be able to launch giveaways in their channels.
-
-✨ Extra
-• Added support for Emoji v15.1.
-• Some design enhancements for shared contacts, links preview and more.`,
-    timestamp: new Date('2024-01-15T09:05:00'),
-    type: 'text',
-    isRead: true
-  }
-]
-
-const reactionEmojis = ['❤️', '👍', '😂', '😮', '😢', '😡', '🔥', '👏', '🎉', '💯']
-
-const API_BASE = 'https://actogr.onrender.com'
-
-// --- AUTH FORM COMPONENT ---
-import { Mail, Eye, EyeOff, ArrowRight, Github, Apple, Chrome, Globe } from 'lucide-react'
-
-// Types for AuthForm
- type Language = 'ru' | 'uz' | 'en';
- interface Translations {
-   appName: string; tagline: string; features: { messaging: string; connect: string; encryption: string; };
-   signIn: string; signUp: string; fullName: string; emailAddress: string; password: string; confirmPassword: string;
-   forgotPassword: string; createAccount: string; continueWith: string; termsText: string; termsOfService: string; privacyPolicy: string; and: string;
- }
- const translations: Record<Language, Translations> = {
-   en: { appName: 'Actogram', tagline: 'Connect, Share, Inspire', features: { messaging: 'Real-time messaging', connect: 'Connect with friends', encryption: 'End-to-end encryption' }, signIn: 'Sign In', signUp: 'Sign Up', fullName: 'Full Name', emailAddress: 'Email Address', password: 'Password', confirmPassword: 'Confirm Password', forgotPassword: 'Forgot Password?', createAccount: 'Create Account', continueWith: 'or continue with', termsText: 'By signing up, you agree to our', termsOfService: 'Terms of Service', privacyPolicy: 'Privacy Policy', and: 'and' },
-   ru: { appName: 'Актограм', tagline: 'Общайтесь, Делитесь, Вдохновляйте', features: { messaging: 'Сообщения в реальном времени', connect: 'Общение с друзьями', encryption: 'Сквозное шифрование' }, signIn: 'Войти', signUp: 'Регистрация', fullName: 'Полное имя', emailAddress: 'Электронная почта', password: 'Пароль', confirmPassword: 'Подтвердите пароль', forgotPassword: 'Забыли пароль?', createAccount: 'Создать аккаунт', continueWith: 'или продолжить с', termsText: 'Регистрируясь, вы соглашаетесь с нашими', termsOfService: 'Условиями использования', privacyPolicy: 'Политикой конфиденциальности', and: 'и' },
-   uz: { appName: 'Aktogram', tagline: 'Bog\'lanish, Ulashish, Ilhomlantirish', features: { messaging: 'Jonli xabar almashish', connect: 'Do\'stlar bilan aloqa', encryption: 'To\'liq shifrlash' }, signIn: 'Kirish', signUp: 'Ro\'yxatga olish', fullName: 'Ism familiya', emailAddress: 'Elektron pochta', password: 'Parol', confirmPassword: 'Parolni tasdiqlang', forgotPassword: 'Parolni unutdingiz?', createAccount: 'Akkaunt yaratish', continueWith: 'yoki boshqa usul bilan', termsText: 'Ro\'yxatga olish orqali siz bizning', termsOfService: 'Foydalanish shartlari', privacyPolicy: 'Maxfiylik nizomi', and: 'va' }
- };
- const languageNames: Record<Language, string> = { en: 'English', ru: 'Русский', uz: 'O\'zbekcha' };
- const languageFlags: Record<Language, string> = { en: '🇺🇸', ru: '🇷🇺', uz: '🇺🇿' };
-
-const LanguageSelector: React.FC<{ currentLanguage: Language; onLanguageChange: (language: Language) => void; }> = ({ currentLanguage, onLanguageChange }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button onClick={() => setIsOpen(!isOpen)} className="flex items-center space-x-2 px-3 py-2 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 text-white hover:bg-white/20 transition-all duration-300">
-        <Globe size={16} />
-        <span className="text-sm font-medium">{languageFlags[currentLanguage]} {languageNames[currentLanguage]}</span>
-      </button>
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden">
-            {(Object.keys(languageNames) as Language[]).map((lang) => (
-              <button key={lang} onClick={() => { onLanguageChange(lang); setIsOpen(false); }} className={`w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200 ${currentLanguage === lang ? 'bg-purple-50 text-purple-600' : 'text-gray-700'}`}>
-                <span className="text-lg">{languageFlags[lang]}</span>
-                <span className="font-medium">{languageNames[lang]}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-// AuthForm component
-const AuthForm: React.FC<{ onAuthSuccess: (token: string, user: any) => void }> = ({ onAuthSuccess }) => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState<Language>('uz');
-  const [formData, setFormData] = useState({ email: '', password: '', name: '', username: '', confirmPassword: '' });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const t = translations[currentLanguage];
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    if (!isLogin && (!formData.username.startsWith('@') || formData.username.length < 4)) {
-      setError('Username должен начинаться с @ и быть не короче 4 символов');
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await fetch('https://actogr.onrender.com/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: isLogin ? 'login' : 'register',
-          email: formData.email,
-          password: formData.password,
-          fullName: formData.name,
-          username: isLogin ? undefined : formData.username,
-        })
-      });
-      const data = await res.json();
-      if (data.success && data.token && data.user) {
-        onAuthSuccess(data.token, data.user);
-      } else {
-        setError(data.error || 'Ошибка авторизации');
-      }
-    } catch (err) {
-      setError('Ошибка подключения к серверу');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
-      <div className="absolute top-6 right-6 z-30">
-        <LanguageSelector currentLanguage={currentLanguage} onLanguageChange={setCurrentLanguage} />
-      </div>
-      <div className="relative w-full max-w-4xl mx-auto">
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
-          <div className="flex flex-col lg:flex-row min-h-[600px]">
-            <div className="lg:w-1/2 bg-gradient-to-br from-purple-600 to-blue-600 p-8 lg:p-12 flex flex-col justify-center items-center text-white relative overflow-hidden">
-              <div className="relative z-10 text-center">
-                <div className="mb-6">
-                  <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-                    <MessageCircle size={40} className="text-white" />
-                  </div>
-                  <h1 className="text-4xl lg:text-5xl font-bold mb-2 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{t.appName}</h1>
-                  <p className="text-lg opacity-90 mb-8">{t.tagline}</p>
-                </div>
-                <div className="space-y-4 text-left">
-                  <div className="flex items-center space-x-3"><div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center"><MessageCircle size={16} /></div><span className="text-sm">{t.features.messaging}</span></div>
-                  <div className="flex items-center space-x-3"><div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center"><User size={16} /></div><span className="text-sm">{t.features.connect}</span></div>
-                  <div className="flex items-center space-x-3"><div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center"><Lock size={16} /></div><span className="text-sm">{t.features.encryption}</span></div>
-                </div>
-              </div>
-            </div>
-            <div className="lg:w-1/2 p-8 lg:p-12">
-              <div className="max-w-md mx-auto">
-                <div className="flex bg-gray-100 rounded-2xl p-1 mb-8">
-                  <button onClick={() => setIsLogin(true)} className={`flex-1 py-3 px-6 rounded-xl font-semibold text-sm transition-all duration-300 ${isLogin ? 'bg-white text-gray-900 shadow-lg' : 'text-gray-600 hover:text-gray-900'}`}>{t.signIn}</button>
-                  <button onClick={() => setIsLogin(false)} className={`flex-1 py-3 px-6 rounded-xl font-semibold text-sm transition-all duration-300 ${!isLogin ? 'bg-white text-gray-900 shadow-lg' : 'text-gray-600 hover:text-gray-900'}`}>{t.signUp}</button>
-                </div>
-                {error && <div className="mb-4 text-red-500 text-center text-sm">{error}</div>}
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {!isLogin && (
-                    <>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><User className="h-5 w-5 text-gray-400" /></div>
-                        <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder={t.fullName} className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 bg-gray-50 hover:bg-white" required={!isLogin} />
-                      </div>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><User className="h-5 w-5 text-gray-400" /></div>
-                        <input type="text" name="username" value={formData.username} onChange={handleInputChange} placeholder="@username" className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 bg-gray-50 hover:bg-white" required pattern="^@[a-zA-Z0-9_]{3,20}$" />
-                      </div>
-                    </>
-                  )}
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Mail className="h-5 w-5 text-gray-400" /></div>
-                    <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder={t.emailAddress} className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 bg-gray-50 hover:bg-white" required />
-                  </div>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-gray-400" /></div>
-                    <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={handleInputChange} placeholder={t.password} className="w-full pl-12 pr-12 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 bg-gray-50 hover:bg-white" required />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600">{showPassword ? <EyeOff size={20} /> : <Eye size={20} />}</button>
-                  </div>
-                  {!isLogin && (
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-gray-400" /></div>
-                      <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} placeholder={t.confirmPassword} className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 bg-gray-50 hover:bg-white" required={!isLogin} />
-                    </div>
-                  )}
-                  {isLogin && (
-                    <div className="flex justify-end">
-                      <button type="button" className="text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors duration-200">{t.forgotPassword}</button>
-                    </div>
-                  )}
-                  <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-xl font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transform hover:scale-[1.02] transition-all duration-300 shadow-lg hover:shadow-xl group disabled:opacity-60 disabled:cursor-not-allowed">
-                    <span className="flex items-center justify-center space-x-2">
-                      <span>{isLogin ? t.signIn : t.createAccount}</span>
-                      <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform duration-200" />
-                    </span>
-                  </button>
-                </form>
-                <div className="my-8 flex items-center"><div className="flex-1 border-t border-gray-200"></div><span className="px-4 text-gray-500 text-sm">{t.continueWith}</span><div className="flex-1 border-t border-gray-200"></div></div>
-                <div className="grid grid-cols-3 gap-4">
-                  <button className="flex items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 group"><Chrome size={24} className="text-gray-600 group-hover:text-blue-600" /></button>
-                  <button className="flex items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 group"><Apple size={24} className="text-gray-600 group-hover:text-black" /></button>
-                  <button className="flex items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300 group"><Github size={24} className="text-gray-600 group-hover:text-black" /></button>
-                </div>
-                {!isLogin && (<p className="text-xs text-gray-500 text-center mt-6">{t.termsText} <a href="#" className="text-purple-600 hover:text-purple-700">{t.termsOfService}</a> {t.and} <a href="#" className="text-purple-600 hover:text-purple-700">{t.privacyPolicy}</a></p>)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 1. Функция для проверки "Actogram"-чата
-const isNewsChat = (chat: Chat | null) => chat && chat.name === 'Actogram';
-const isSavedChat = (chat: Chat | null) => chat && chat.name === 'Избранное';
-// 2. Для readBy (двойные галочки)
-const isMessageRead = (message: Message, chat: Chat | null, user: User | null) => {
-  if (isSavedChat(chat)) return true;
-  if (!message.readBy || !user) return false;
-  // Для приватных чатов: если прочитал собеседник
-  if (chat && chat.participants.length === 2) {
-    const other = chat.participants.find(u => u.id !== user.id);
-    return message.readBy.includes(other?.id);
-  }
-  // Для групп — если все кроме отправителя прочитали
-  if (chat && chat.isGroup) {
-    return chat.participants.filter(u => u.id !== message.senderId).every(u => message.readBy?.includes(u.id));
-  }
-  return false;
-};
-
-// 4. Для смены ника
-async function handleChangeNick({ newUsername, setNickError, setNickSuccess, setUser, user, token }: { newUsername: string, setNickError: (v: string|null) => void, setNickSuccess: (v: string|null) => void, setUser: any, user: any, token: string|null }) {
-  setNickError(null); setNickSuccess(null);
-  if (!newUsername.startsWith('@') || newUsername.length < 4) {
-    setNickError('Username должен начинаться с @ и быть не короче 4 символов');
-    return;
-  }
+const decryptMessage = (encrypted: string): string => {
   try {
-    const res = await fetch(`${API_BASE}/api/auth`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: 'update_username', username: newUsername })
-    });
-    const data = await res.json();
-    if (data.success) {
-      setUser((prev: any) => ({ ...prev, username: newUsername }));
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('actogram_user', JSON.stringify({ ...user, username: newUsername }));
-      }
-      setNickSuccess('Ник успешно изменён!');
-    } else {
-      setNickError(data.error || 'Ошибка смены ника');
-    }
+    return decodeURIComponent(escape(atob(encrypted)))
   } catch {
-    setNickError('Ошибка подключения к серверу');
+    return encrypted
   }
 }
 
-export default function ChatPage() {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [chats, setChats] = useState<Chat[]>(mockChats);
-  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [newUsername, setNewUsername] = useState('');
-  const [nickError, setNickError] = useState<string | null>(null);
-  const [nickSuccess, setNickSuccess] = useState<string | null>(null);
-  const [showAuth, setShowAuth] = useState(true);
-  const [initLoading, setInitLoading] = useState(true);
-  const [showChatMenu, setShowChatMenu] = useState(false);
+// Основной компонент
+export default function ActogramChat() {
+  // Состояния
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [chats, setChats] = useState<Chat[]>([])
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [newMessage, setNewMessage] = useState("")
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoginMode, setIsLoginMode] = useState(true)
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    username: "",
+    fullName: "",
+    bio: "",
+  })
+  const [showPassword, setShowPassword] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<User[]>([])
+  const [isConnected, setIsConnected] = useState(false)
+  const [activeUsers, setActiveUsers] = useState<User[]>([])
+  const [typingUsers, setTypingUsers] = useState<string[]>([])
+  const [language, setLanguage] = useState<"uz" | "ru" | "en">("uz")
+  const [darkMode, setDarkMode] = useState(false)
+  const [notifications, setNotifications] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+  const [isMobile, setIsMobile] = useState(false)
+  const [showSidebar, setShowSidebar] = useState(true)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showUserSearch, setShowUserSearch] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null)
+  const [selectedTheme, setSelectedTheme] = useState("default")
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isRecording, setIsRecording] = useState(false)
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const socketRef = useRef<Socket | null>(null);
+  // Refs
+  const socketRef = useRef<Socket | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const messageInputRef = useRef<HTMLInputElement>(null)
 
+  const t = translations[language]
+
+  // Проверка мобильного устройства
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const t = localStorage.getItem('actogram_token');
-      const savedUser = localStorage.getItem('actogram_user');
-      if (t && savedUser) {
-        setToken(t);
-        setUser(JSON.parse(savedUser));
-        setShowAuth(false);
-      } else {
-        setToken(null);
-        setUser(null);
-        setShowAuth(true);
-      }
-      setInitLoading(false);
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      setShowSidebar(!mobile)
     }
-  }, []);
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
 
+  // Загрузка настроек
   useEffect(() => {
-    const socket = io('https://actogr.onrender.com', { transports: ['websocket'] });
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      setIsConnected(true);
-      console.log('Socket connected');
-      if (user) {
-        socket.emit('user_connected', user.id);
-      }
-    });
-
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-      console.log('Socket disconnected');
-    });
-
-    socket.on('new_message', (message: Message) => {
-      setChats(prev => {
-        const updatedChats = prev.map(chat => {
-          if (chat.id === message.chatId) {
-            return {
-              ...chat,
-              lastMessage: message,
-              unreadCount: chat.unreadCount + 1
-            };
-          }
-          return chat;
-        });
-        const chat = updatedChats.find(c => c.id === message.chatId);
-        if (chat) {
-          setSelectedChat(chat);
-        }
-        return updatedChats;
-      });
-      setMessages(prev => [...prev, message]);
-    });
-
-    socket.on('chat_updated', (chat: Chat) => {
-      setChats(prev => {
-        const exists = prev.find(c => c.id === chat.id);
-        if (exists) {
-          return prev.map(c => c.id === chat.id ? chat : c);
-        }
-        return [...prev, chat];
-      });
-      const updatedChat = chats.find(c => c.id === chat.id);
-      if (updatedChat) {
-        setSelectedChat(updatedChat);
-      }
-    });
-
-    socket.on('user_connected', (userId: string) => {
-      setChats(prev => prev.map(chat => {
-        if (chat.isGroup) {
-          return {
-            ...chat,
-            participants: chat.participants.map(p => p.id === userId ? { ...p, isOnline: true } : p)
-          };
-        }
-        return chat;
-      }));
-    });
-
-    socket.on('user_disconnected', (userId: string) => {
-      setChats(prev => prev.map(chat => {
-        if (chat.isGroup) {
-          return {
-            ...chat,
-            participants: chat.participants.map(p => p.id === userId ? { ...p, isOnline: false } : p)
-          };
-        }
-        return chat;
-      }));
-    });
-
-    socket.on('typing_start', (userId: string) => {
-      setTypingUsers(prev => {
-        if (prev.includes(userId)) return prev;
-        return [...prev, userId];
-      });
-    });
-
-    socket.on('typing_stop', (userId: string) => {
-      setTypingUsers(prev => prev.filter(id => id !== userId));
-    });
-
-    socket.on('new_private_chat', (chat: Chat) => {
-      setChats(prev => {
-        const exists = prev.find(c => c.id === chat.id);
-        if (exists) return prev;
-        return [chat, ...prev];
-      });
-      setSelectedChat(chat);
-    });
-
-    socket.on('error', (error: string) => {
-      console.error('Socket error:', error);
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [user, chats]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    handleResize(); // Set initial value
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    if (selectedChat) {
-      const messages: Message[] = [];
-      mockMessages.forEach(msg => {
-        if (msg.chatId === selectedChat.id) {
-          messages.push(msg);
-        }
-      });
-      setMessages(messages);
+    const savedSettings = localStorage.getItem("actogram_settings")
+    if (savedSettings) {
+      const settings = JSON.parse(savedSettings)
+      setDarkMode(settings.darkMode || false)
+      setLanguage(settings.language || "uz")
+      setNotifications(settings.notifications !== false)
+      setSelectedTheme(settings.theme || "default")
     }
-  }, [selectedChat]);
+
+    const savedUser = localStorage.getItem("actogram_user")
+    if (savedUser) {
+      const user = JSON.parse(savedUser)
+      console.log("🔍 Загружен пользователь из localStorage:", user)
+      setCurrentUser(user)
+      setIsAuthenticated(true)
+    }
+  }, [])
+
+  // Применение темной темы
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode)
+  }, [darkMode])
+
+  // Подключение к серверу
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser) return
+
+    const serverUrl = "https://actogr.onrender.com"
+    socketRef.current = io(serverUrl, {
+      transports: ["websocket", "polling"],
+      auth: {
+        token: localStorage.getItem("actogram_token"),
+        userId: currentUser.id,
+      },
+    })
+
+    const socket = socketRef.current
+
+    socket.on("connect", () => {
+      setIsConnected(true)
+      loadChats()
+    })
+
+    socket.on("disconnect", () => {
+      setIsConnected(false)
+    })
+
+    socket.on("new_message", (message: Message) => {
+      console.log("📨 Получено новое сообщение:", message)
+      if (message.isEncrypted) {
+        message.content = decryptMessage(message.content)
+        console.log("🔓 Расшифрованное сообщение:", message.content)
+      }
+      setMessages((prev) => [...prev, message])
+      updateChatLastMessage(message)
+      if (notifications && message.senderId !== currentUser.id) {
+        showNotification(message.senderName, message.content)
+      }
+    })
+
+    socket.on("message_edited", (message: Message) => {
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? message : m)))
+    })
+
+    socket.on("message_deleted", (messageId: string) => {
+      setMessages((prev) => prev.filter((m) => m.id !== messageId))
+    })
+
+    socket.on("user_typing", (data: { userId: string; username: string; chatId: string }) => {
+      if (data.chatId === selectedChat?.id && data.userId !== currentUser.id) {
+        setTypingUsers((prev) => [...prev.filter((u) => u !== data.username), data.username])
+        setTimeout(() => {
+          setTypingUsers((prev) => prev.filter((u) => u !== data.username))
+        }, 3000)
+      }
+    })
+
+    socket.on("user_stop_typing", (data: { userId: string; chatId: string }) => {
+      setTypingUsers((prev) => prev.filter((u) => u !== data.userId))
+    })
+
+    socket.on("users_update", (users: User[]) => {
+      setActiveUsers(users)
+    })
+
+    socket.on("search_results", (results: User[]) => {
+      setSearchResults(results)
+    })
+
+    socket.on("my_chats", (userChats: Chat[]) => {
+      setChats(userChats)
+    })
+
+    socket.on("chat_messages", (data: { chatId: string; messages: Message[] }) => {
+      if (data.chatId === selectedChat?.id) {
+        setMessages(data.messages)
+      }
+    })
+
+    socket.on("new_private_chat", (chat: Chat) => {
+      console.log("🔍 Получен новый приватный чат:", chat)
+      setChats((prev) => {
+        const existingChat = prev.find((c) => c.id === chat.id)
+        if (!existingChat) {
+          return [...prev, chat]
+        }
+        return prev
+      })
+    })
+
+          return () => {
+        socket.disconnect()
+      }
+  }, [isAuthenticated, currentUser, selectedChat?.id, notifications])
+
+  // Автоскролл
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
+
+  // Функции
+  const showNotification = (title: string, body: string) => {
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(title, { body, icon: "/favicon.ico" })
+    }
+  }
+
+  const updateChatLastMessage = (message: Message) => {
+    setChats((prev) => prev.map((chat) => (chat.id === message.chatId ? { ...chat, lastMessage: message } : chat)))
+  }
+
+  const handleAuth = async () => {
+    setLoading(true)
+    setError("")
+
+    try {
+      const response = await fetch("https://actogr.onrender.com/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: isLoginMode ? "login" : "register",
+          ...formData,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error)
+        return
+      }
+
+      console.log("🔍 Ответ сервера при аутентификации:", data)
+      
+      const user: User = {
+        id: data.user.id,
+        username: data.user.username,
+        email: data.user.email,
+        fullName: data.user.fullName,
+        avatar: data.user.avatar,
+        bio: data.user.bio,
+        isOnline: true,
+        lastSeen: new Date(),
+        isVerified: data.user.isVerified,
+        status: "online",
+      }
+
+      console.log("🔍 Созданный пользователь:", user)
+      
+      setCurrentUser(user)
+      setIsAuthenticated(true)
+      setSuccess(isLoginMode ? "Успешный вход!" : "Регистрация завершена!")
+
+      localStorage.setItem("actogram_user", JSON.stringify(user))
+      localStorage.setItem("actogram_token", data.token)
+
+      if ("Notification" in window) {
+        Notification.requestPermission()
+      }
+    } catch (error) {
+      setError("Ошибка подключения к серверу")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleLogout = () => {
-    setToken(null);
-    setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('actogram_token');
-      localStorage.removeItem('actogram_user');
-    }
-  };
+    localStorage.removeItem("actogram_user")
+    localStorage.removeItem("actogram_token")
+    setCurrentUser(null)
+    setIsAuthenticated(false)
+    setChats([])
+    setMessages([])
+    setSelectedChat(null)
+    socketRef.current?.disconnect()
+  }
 
-  const handleSearchUsers = async (query: string) => {
-    setSearchQuery(query);
-    if (query.length < 3) {
-      setSearchResults([]);
-      return;
-    }
+  const loadChats = async () => {
+    if (!currentUser) return
+    
     try {
-      const res = await fetch(`${API_BASE}/api/users/search?q=${query}`);
-      const data = await res.json();
-      setSearchResults(data.users);
-    } catch (err) {
-      console.error('Error searching users:', err);
-      setSearchResults([]);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && newMessage.trim() && !isNewsChat(selectedChat)) {
-      handleSendMessage();
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || isNewsChat(selectedChat)) return;
-    const message: Message = {
-      id: `msg_${Date.now()}`,
-      senderId: user?.id || '',
-      senderName: user?.username || 'Me',
-      content: newMessage,
-      timestamp: new Date(),
-      type: 'text',
-      isRead: false,
-      chatId: selectedChat?.id
-    };
-    setMessages(prev => [...prev, message]);
-    setNewMessage('');
-    setTypingUsers([]);
-
-    try {
-      const res = await fetch(`${API_BASE}/api/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          content: message.content,
-          chatId: message.chatId,
-          senderId: message.senderId,
-          senderName: message.senderName
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        socketRef.current?.emit('new_message', data.message);
+      // Загружаем чаты через REST API
+      const token = localStorage.getItem("actogram_token")
+      const response = await fetch("https://actogr.onrender.com/api/chats", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+      
+      if (response.ok) {
+        const chats = await response.json()
+        console.log("🔍 Загружены чаты из API:", chats)
+        setChats(chats)
       } else {
-        console.error('Error sending message:', data.error);
+        console.error("❌ Ошибка загрузки чатов:", response.status)
       }
-    } catch (err) {
-      console.error('Error sending message:', err);
+    } catch (error) {
+      console.error("❌ Ошибка загрузки чатов:", error)
     }
-  };
+    
+    // Также запрашиваем через Socket.IO для обновления в реальном времени
+    if (socketRef.current && currentUser) {
+      socketRef.current.emit("get_my_chats", currentUser.id)
+    }
+  }
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
+  const loadMessages = async (chatId: string) => {
+    if (!currentUser) return
+    
     try {
-      const res = await fetch(`${API_BASE}/api/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      });
-      const data = await res.json();
-      if (data.success) {
-        const message: Message = {
-          id: `msg_${Date.now()}`,
-          senderId: user?.id || '',
-          senderName: user?.username || 'Me',
-          content: data.url, // URL файла
-          timestamp: new Date(),
-          type: 'image', // Или 'file'
-          isRead: false,
-          chatId: selectedChat?.id
-        };
-        setMessages(prev => [...prev, message]);
-        setNewMessage('');
-        setTypingUsers([]);
-        socketRef.current?.emit('new_message', message);
+      // Загружаем сообщения через REST API
+      const token = localStorage.getItem("actogram_token")
+      const response = await fetch(`https://actogr.onrender.com/api/messages/${chatId}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+      
+      if (response.ok) {
+        const messages = await response.json()
+        console.log("🔍 Загружены сообщения из API:", messages)
+        setMessages(messages)
       } else {
-        console.error('Error uploading file:', data.error);
+        console.error("❌ Ошибка загрузки сообщений:", response.status)
       }
-    } catch (err) {
-      console.error('Error uploading file:', err);
+    } catch (error) {
+      console.error("❌ Ошибка загрузки сообщений:", error)
     }
-  };
+    
+    // Также запрашиваем через Socket.IO для обновления в реальном времени
+    if (socketRef.current && currentUser) {
+      socketRef.current.emit("get_messages", { chatId, userId: currentUser.id })
+    }
+  }
 
-  const handleChatSelect = (chat: Chat) => {
-    setSelectedChat(chat);
-    setShowSearch(false);
-    setSearchQuery('');
-    setSearchResults([]);
-  };
+  const sendMessage = () => {
+    console.log("🔍 Отладка sendMessage:", {
+      currentUser: currentUser,
+      currentUserId: currentUser?.id,
+      selectedChat: selectedChat,
+      newMessage: newMessage.trim(),
+      socketRef: !!socketRef.current
+    })
+    
+    if (!newMessage.trim() || !selectedChat || !currentUser || !socketRef.current) {
+      console.log("❌ Не удается отправить сообщение:", {
+        hasMessage: !!newMessage.trim(),
+        hasChat: !!selectedChat,
+        hasUser: !!currentUser,
+        hasSocket: !!socketRef.current
+      })
+      return
+    }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('ru-RU', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    console.log("📤 Отправка сообщения:", {
+      content: newMessage.trim(),
+      chatId: selectedChat.id,
+      userId: currentUser.id,
+      username: currentUser.username
+    })
+
+    const messageData = {
+      content: encryptMessage(newMessage.trim()),
+      chatId: selectedChat.id,
+      type: "text",
+      isEncrypted: true,
+      replyTo: replyingTo
+        ? {
+            id: replyingTo.id,
+            content: replyingTo.content,
+            senderName: replyingTo.senderName,
+          }
+        : undefined,
+    }
+
+    console.log("📤 Данные сообщения для отправки:", messageData)
+    socketRef.current.emit("send_message", messageData)
+    setNewMessage("")
+    setReplyingTo(null)
+    stopTyping()
+  }
+
+  const selectChat = (chat: Chat) => {
+    setSelectedChat(chat)
+    setReplyingTo(null)
+    setEditingMessage(null)
+    loadMessages(chat.id)
+    if (isMobile) setShowSidebar(false)
+    if (socketRef.current) {
+      socketRef.current.emit("join_chat", chat.id)
+    }
+  }
+
+  const startTyping = () => {
+    if (selectedChat && socketRef.current && currentUser) {
+      socketRef.current.emit("typing", {
+        chatId: selectedChat.id,
+        userId: currentUser.id,
+        username: currentUser.username,
+      })
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+
+      typingTimeoutRef.current = setTimeout(stopTyping, 1000)
+    }
+  }
+
+  const stopTyping = () => {
+    if (selectedChat && socketRef.current) {
+      socketRef.current.emit("stop_typing", { chatId: selectedChat.id })
+    }
+  }
+
+  const searchUsers = (query: string) => {
+    if (!query.trim() || !socketRef.current) {
+      setSearchResults([])
+      return
+    }
+    socketRef.current.emit("search_users", query)
+  }
+
+  const startPrivateChat = (user: User) => {
+    if (!currentUser || !socketRef.current) return
+
+    const chatId = `private_${[currentUser.id, user.id].sort().join("_")}`
+    const existingChat = chats.find((chat) => chat.id === chatId)
+
+    if (existingChat) {
+      selectChat(existingChat)
+      setShowUserSearch(false)
+      return
+    }
+
+    const newChat: Chat = {
+      id: chatId,
+      name: user.fullName || user.username,
+      avatar: user.avatar,
+      isGroup: false,
+      participants: [currentUser, user],
+      unreadCount: 0,
+      messageCount: 0,
+      type: "private",
+      isEncrypted: true,
+      createdBy: currentUser.id,
+      createdAt: new Date(),
+    }
+
+    setChats((prev) => [...prev, newChat])
+    selectChat(newChat)
+    setShowUserSearch(false)
+
+    console.log("🔍 Создание приватного чата:", {
+      userId: user.id,
+      chatId,
+      createdBy: currentUser.id,
+    })
+    
+    socketRef.current.emit("create_private_chat", {
+      userId: user.id,
+      chatId,
+      createdBy: currentUser.id,
     })
   }
 
-  const formatLastSeen = (lastSeen: string) => {
-    if (lastSeen === 'online') return 'в сети'
-    if (lastSeen === 'вчера') return 'был(а) вчера'
-    return `был(а) в ${lastSeen}`
+  const addReaction = (messageId: string, emoji: string) => {
+    if (!currentUser || !socketRef.current) return
+
+    socketRef.current.emit("add_reaction", {
+      messageId,
+      emoji,
+      userId: currentUser.id,
+      username: currentUser.username,
+    })
   }
 
-  const getAvatarColor = (name: string) => {
-    const colors = [
-      'from-red-500 to-pink-500',
-      'from-blue-500 to-cyan-500', 
-      'from-green-500 to-emerald-500',
-      'from-purple-500 to-violet-500',
-      'from-orange-500 to-yellow-500',
-      'from-indigo-500 to-blue-500',
-      'from-pink-500 to-rose-500',
-      'from-teal-500 to-green-500'
-    ]
-    const index = name.charCodeAt(0) % colors.length
-    return colors[index]
+  const saveSettings = () => {
+    const settings = { darkMode, language, notifications, theme: selectedTheme }
+    localStorage.setItem("actogram_settings", JSON.stringify(settings))
   }
 
-  // Tabs state
-  const [activeTab, setActiveTab] = useState<'all' | 'private' | 'foryou' | 'new'>('all')
-
-  // Фильтрация чатов по табу
-  const filteredChats = chats.filter(chat => {
-    if (activeTab === 'all') return chat
-    if (activeTab === 'private') return !chat.isGroup
-    if (activeTab === 'foryou') return chat.name === 'Избранное'
-    if (activeTab === 'new') return chat.unreadCount > 0
-    return chat
-  }).filter(chat => chat.name.toLowerCase().includes(searchQuery.toLowerCase()))
-
-  // Состояние для модального окна настроек
-  const [showSettings, setShowSettings] = useState(false)
-
-  // Authentication Modal
-  if (initLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white text-xl">Загрузка...</div>;
-  }
-  if (showAuth || !token || !user) {
-    return <AuthForm onAuthSuccess={(token, user) => {
-      setToken(token);
-      setUser(user);
-      setShowAuth(false);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('actogram_token', token);
-        localStorage.setItem('actogram_user', JSON.stringify(user));
-      }
-    }} />
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    setError("")
   }
 
-  // handleCreatePrivateChat должен быть определён до рендера
-  const handleCreatePrivateChat = (otherUser: User) => {
-    if (!socketRef.current || !user) return;
-    const chatId = `private_${user.id}_${otherUser.id}`;
-    socketRef.current.emit('create_private_chat', {
-      userId: otherUser.id,
-      chatId,
-      createdBy: user.id
-    });
-    setShowSearch(false);
-    setSearchQuery('');
-    // После создания чата — слушаем событие new_private_chat
-    socketRef.current.once('new_private_chat', (chat: Chat) => {
-      setChats(prev => {
-        const exists = prev.find(c => c.id === chat.id);
-        if (exists) return prev;
-        return [chat, ...prev];
-      });
-      setSelectedChat(chat);
-    });
-  };
+  const filteredChats = chats.filter((chat) => chat.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
-  return (
-    <div className={`h-screen flex ${darkMode ? 'dark' : ''}`}>
-      <div className="h-screen flex bg-gray-100 dark:bg-gray-900 w-full relative overflow-hidden">
-        
-        {/* Sidebar */}
-        <div className={`${
-          isMobile ? 'fixed inset-y-0 left-0 z-50 w-full' : 'w-80 min-w-80'
-        } bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 ${
-          isMobile && !showSidebar ? '-translate-x-full' : 'translate-x-0'
-        }`}>
-          
-          {/* Header */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                <MessageCircle className="h-6 w-6 text-white" />
-              </button>
-              <span className="text-lg font-semibold text-gray-100">Actogram</span>
+  // Стили
+  const gradientBg = `bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900`
+  const cardStyle = `backdrop-blur-lg bg-white/80 dark:bg-gray-800/80 border border-white/20 dark:border-gray-700/50 shadow-xl`
+  const buttonStyle = `transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl`
+  const inputStyle = `backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 border-2 border-transparent focus:border-blue-500 dark:focus:border-blue-400`
+
+  // Проверка домена
+  const hostname = typeof window !== "undefined" ? window.location.hostname : ""
+  const allowedDomains = ["vercel.app", "render.com", "localhost"]
+  const isDomainAllowed = allowedDomains.some((domain) => hostname.includes(domain) || hostname === "localhost")
+
+  if (!isDomainAllowed) {
+    return (
+      <div className={`min-h-screen ${gradientBg} flex items-center justify-center p-4`}>
+        <Card className={`max-w-md ${cardStyle}`}>
+          <CardHeader>
+            <CardTitle className="text-red-600 flex items-center gap-2">
+              <Shield className="h-6 w-6" />
+              Доступ ограничен
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>ACTOGRAM доступен только с разрешенных доменов</p>
+            <p className="text-sm text-gray-500 mt-2">Проверка безопасности домена</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Экран аутентификации
+  if (!isAuthenticated) {
+    return (
+      <div className={`min-h-screen ${gradientBg} flex items-center justify-center p-4`}>
+        <Card className={`w-full max-w-md ${cardStyle} animate-in fade-in-50 duration-500`}>
+          <CardHeader className="text-center space-y-4">
+            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl">
+              <MessageCircle className="h-10 w-10 text-white" />
             </div>
-            <div className="flex items-center gap-2">
-              {isConnected ? (
-                <>
-                  <Wifi className="h-3 w-3 text-green-500" />
-                  <span className="text-xs text-green-500">Онлайн</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-3 w-3 text-red-500" />
-                  <span className="text-xs text-red-500">Оффлайн</span>
-                </>
-              )}
-              {user && (
-                <button onClick={handleLogout} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                  <LogOut className="h-4 w-4" />
-                </button>
-              )}
-              <button onClick={() => setShowSettings(true)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                <Settings className="h-4 w-4" />
-              </button>
+            <div>
+              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                {t.appName}
+              </CardTitle>
+              <p className="text-gray-600 dark:text-gray-300 mt-2">{t.welcome}</p>
             </div>
-          </div>
+            <div className="flex items-center justify-center gap-2 text-sm">
+              <Lock className="h-4 w-4 text-green-500" />
+              <span className="text-green-600 dark:text-green-400">End-to-End Encrypted</span>
+            </div>
+          </CardHeader>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Поиск"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <CardContent className="space-y-6">
+            <Tabs value={isLoginMode ? "login" : "register"} className="w-full">
+              <TabsList className={`grid w-full grid-cols-2 ${cardStyle}`}>
+                <TabsTrigger value="login" onClick={() => setIsLoginMode(true)} className={buttonStyle}>
+                  {t.login}
+                </TabsTrigger>
+                <TabsTrigger value="register" onClick={() => setIsLoginMode(false)} className={buttonStyle}>
+                  {t.register}
+                </TabsTrigger>
+              </TabsList>
 
-          {/* User Search Results */}
-          {showSearch && user && (
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="mb-3">
-                <input
-                  type="text"
-                  placeholder="Поиск пользователей..."
-                  onChange={(e) => handleSearchUsers(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {searchResults.map((user) => (
-                  <div
-                    key={user.id}
-                    onClick={() => handleCreatePrivateChat(user)}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                  >
-                    <div className={`w-8 h-8 bg-gradient-to-br ${getAvatarColor(user.fullName)} rounded-full flex items-center justify-center`}>
-                      <span className="text-white font-semibold text-sm">
-                        {user.fullName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-white truncate">
-                        {user.fullName}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                        {user.username}
-                      </p>
-                    </div>
+              <TabsContent value="login" className="space-y-4 mt-6">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="flex items-center gap-2 text-sm font-medium">
+                    <Mail className="h-4 w-4" />
+                    {t.email}
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    className={inputStyle}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="flex items-center gap-2 text-sm font-medium">
+                    <Lock className="h-4 w-4" />
+                    {t.password}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange("password", e.target.value)}
+                      className={`${inputStyle} pr-10`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
                   </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="register" className="space-y-4 mt-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName" className="text-sm font-medium">
+                      {t.fullName}
+                    </Label>
+                    <Input
+                      id="fullName"
+                      placeholder="John Doe"
+                      value={formData.fullName}
+                      onChange={(e) => handleInputChange("fullName", e.target.value)}
+                      className={inputStyle}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-sm font-medium">
+                      {t.username}
+                    </Label>
+                    <Input
+                      id="username"
+                      placeholder="@username"
+                      value={formData.username}
+                      onChange={(e) => {
+                        let value = e.target.value
+                        if (!value.startsWith("@") && value.length > 0) {
+                          value = "@" + value
+                        }
+                        handleInputChange("username", value)
+                      }}
+                      className={inputStyle}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email-reg" className="flex items-center gap-2 text-sm font-medium">
+                    <Mail className="h-4 w-4" />
+                    {t.email}
+                  </Label>
+                  <Input
+                    id="email-reg"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    className={inputStyle}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password-reg" className="flex items-center gap-2 text-sm font-medium">
+                    <Lock className="h-4 w-4" />
+                    {t.password}
+                  </Label>
+                  <Input
+                    id="password-reg"
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange("password", e.target.value)}
+                    className={inputStyle}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bio" className="text-sm font-medium">
+                    {t.bio}
+                  </Label>
+                  <Input
+                    id="bio"
+                    placeholder="Tell us about yourself..."
+                    value={formData.bio}
+                    onChange={(e) => handleInputChange("bio", e.target.value)}
+                    className={inputStyle}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">{t.language}</Label>
+              <div className="flex gap-1">
+                {languages.map((lang) => (
+                  <Button
+                    key={lang.code}
+                    variant={language === lang.code ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setLanguage(lang.code as "uz" | "ru" | "en")}
+                    className={buttonStyle}
+                  >
+                    {lang.flag}
+                  </Button>
                 ))}
               </div>
             </div>
-          )}
 
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200 dark:border-gray-700">
-            <button onClick={() => setActiveTab('all')} className={`flex-1 py-3 text-sm font-medium ${activeTab === 'all' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>Все <span className="ml-1 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">{chats.length}</span></button>
-            <button onClick={() => setActiveTab('private')} className={`flex-1 py-3 text-sm font-medium ${activeTab === 'private' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>Личные</button>
-            <button onClick={() => setActiveTab('foryou')} className={`flex-1 py-3 text-sm font-medium ${activeTab === 'foryou' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>Для вас</button>
-            <button onClick={() => setActiveTab('new')} className={`flex-1 py-3 text-sm font-medium ${activeTab === 'new' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>Новые <span className="ml-1 px-1.5 py-0.5 bg-blue-500 text-white rounded text-xs">{chats.filter(c => c.unreadCount > 0).length}</span></button>
+            {error && (
+              <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/50">
+                <AlertDescription className="text-red-600 dark:text-red-400">{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/50">
+                <AlertDescription className="text-green-600 dark:text-green-400">{success}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              onClick={handleAuth}
+              className={`w-full ${buttonStyle} bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700`}
+              disabled={loading}
+            >
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  {t.connecting}
+                </div>
+              ) : isLoginMode ? (
+                t.login
+              ) : (
+                t.register
+              )}
+            </Button>
+
+            <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p>
+                {isLoginMode ? "Нет аккаунта?" : "Есть аккаунт?"}{" "}
+                <button
+                  onClick={() => setIsLoginMode(!isLoginMode)}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  {isLoginMode ? t.register : t.login}
+                </button>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Основной интерфейс чата
+  return (
+    <div className={`h-screen flex ${darkMode ? "dark" : ""}`}>
+      <div className={`h-screen flex ${gradientBg} w-full relative overflow-hidden`}>
+        {/* Боковая панель */}
+        <div
+          className={`${
+            isMobile ? "fixed inset-y-0 left-0 z-50 w-full" : "w-80 min-w-80"
+          } ${cardStyle} border-r flex flex-col transition-all duration-300 ${
+            isMobile && !showSidebar ? "-translate-x-full" : "translate-x-0"
+          }`}
+        >
+          {/* Заголовок */}
+          <div className="p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <MessageCircle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold">{t.appName}</h1>
+                  <p className="text-xs text-blue-100">
+                    {isConnected ? (
+                      <span className="flex items-center gap-1">
+                        <Wifi className="h-3 w-3" />
+                        {t.connected}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <WifiOff className="h-3 w-3" />
+                        {t.disconnected}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="bg-white/20 text-white border-0">
+                  {currentUser?.username}
+                </Badge>
+                <Dialog open={showSettings} onOpenChange={setShowSettings}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className={`${cardStyle} max-w-md`}>
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Settings className="h-5 w-5" />
+                        {t.settings}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <Tabs defaultValue="profile" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="profile">{t.profile}</TabsTrigger>
+                        <TabsTrigger value="settings">{t.settings}</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="profile" className="space-y-4">
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-16 w-16">
+                            <AvatarImage src={currentUser?.avatar || "/placeholder.svg"} />
+                            <AvatarFallback className="text-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                              {currentUser?.fullName?.charAt(0) || currentUser?.username?.charAt(1)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <h3 className="font-semibold">{currentUser?.fullName}</h3>
+                            <p className="text-sm text-gray-500">{currentUser?.username}</p>
+                            <p className="text-sm text-green-500 flex items-center gap-1">
+                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                              {t.online}
+                            </p>
+                          </div>
+                        </div>
+                        <Button onClick={handleLogout} variant="destructive" className="w-full">
+                          {t.logout}
+                        </Button>
+                      </TabsContent>
+                      <TabsContent value="settings" className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>{t.darkMode}</Label>
+                            <p className="text-sm text-gray-500">Переключить тему</p>
+                          </div>
+                          <Switch
+                            checked={darkMode}
+                            onCheckedChange={(checked) => {
+                              setDarkMode(checked)
+                              saveSettings()
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>{t.notifications}</Label>
+                            <p className="text-sm text-gray-500">Уведомления о сообщениях</p>
+                          </div>
+                          <Switch
+                            checked={notifications}
+                            onCheckedChange={(checked) => {
+                              setNotifications(checked)
+                              saveSettings()
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t.language}</Label>
+                          <div className="flex gap-2">
+                            {languages.map((lang) => (
+                              <Button
+                                key={lang.code}
+                                variant={language === lang.code ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                  setLanguage(lang.code as "uz" | "ru" | "en")
+                                  saveSettings()
+                                }}
+                              >
+                                {lang.flag} {lang.name}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
           </div>
 
-          {/* Chat List */}
+          {/* Поиск */}
+          <div className="p-3 border-b space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder={t.search}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`pl-10 ${inputStyle}`}
+              />
+            </div>
+            <Dialog open={showUserSearch} onOpenChange={setShowUserSearch}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className={`w-full ${buttonStyle}`}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  {t.newChat}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className={cardStyle}>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <UserPlus className="h-5 w-5" />
+                    {t.searchUsers}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="@username или имя"
+                      onChange={(e) => searchUsers(e.target.value)}
+                      className={`pl-10 ${inputStyle}`}
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {searchResults.map((user) => (
+                      <div
+                        key={user.id}
+                        onClick={() => startPrivateChat(user)}
+                        className={`flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-all duration-200 ${buttonStyle}`}
+                      >
+                        <Avatar>
+                          <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                            {user.fullName?.charAt(0) || user.username?.charAt(1)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{user.fullName || user.username}</h4>
+                            {user.isVerified && <Star className="h-3 w-3 text-yellow-500" />}
+                          </div>
+                          <p className="text-sm text-gray-500">{user.username}</p>
+                          {user.bio && <p className="text-xs text-gray-400 truncate">{user.bio}</p>}
+                        </div>
+                        <div className={`w-3 h-3 rounded-full ${user.isOnline ? "bg-green-500" : "bg-gray-300"}`} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Список чатов */}
           <div className="flex-1 overflow-y-auto">
             {filteredChats.map((chat) => (
               <div
                 key={chat.id}
-                onClick={() => handleChatSelect(chat)}
-                className={`p-3 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                  selectedChat?.id === chat.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                onClick={() => selectChat(chat)}
+                className={`p-4 border-b cursor-pointer transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                  selectedChat?.id === chat.id
+                    ? "bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border-l-4 border-l-blue-500"
+                    : ""
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className={`w-12 h-12 bg-gradient-to-br ${getAvatarColor(chat.name)} rounded-full flex items-center justify-center shadow-sm`}>
-                      <span className="text-white font-semibold text-lg">
-                        {chat.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    {chat.participants[0]?.isOnline && (
-                      <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></div>
-                    )}
-                    {chat.isPinned && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-gray-400 rounded-full flex items-center justify-center">
-                        <Star className="h-2.5 w-2.5 text-white" />
-                      </div>
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={chat.avatar || "/placeholder.svg"} />
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                        {chat.isGroup ? <Users className="h-5 w-5" /> : chat.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {!chat.isGroup && (
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full" />
                     )}
                   </div>
-                  
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-gray-900 dark:text-white truncate">
-                          {chat.name}
-                        </h3>
-                        {chat.participants[0]?.isVerified && (
-                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                            <Check className="h-2.5 w-2.5 text-white" />
-                          </div>
-                        )}
-                        {chat.isMuted && (
-                          <Bell className="h-3 w-3 text-gray-400" />
-                        )}
+                        {/* Для приватного чата показывай имя собеседника */}
+                        {(() => {
+                          const isPrivate = chat.type === "private"
+                          const otherUser = isPrivate
+                            ? chat.participants.find((u) => u.id !== currentUser?.id)
+                            : null
+                          const chatDisplayName = isPrivate
+                            ? otherUser?.fullName || otherUser?.username || "Неизвестно"
+                            : chat.name
+                          return <h3 className="font-medium truncate">{chatDisplayName}</h3>
+                        })()}
+                        {chat.isEncrypted && <Lock className="h-3 w-3 text-green-500" />}
+                        {chat.isPinned && <Star className="h-3 w-3 text-yellow-500" />}
                       </div>
                       {chat.lastMessage && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatTime(chat.lastMessage.timestamp)}
+                        <span className="text-xs text-gray-500">
+                          {new Date(chat.lastMessage.timestamp).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </span>
                       )}
                     </div>
-                    
                     {chat.lastMessage && (
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-gray-600 dark:text-gray-300 truncate flex-1">
-                          {chat.lastMessage.type === 'image' ? '📷 фотография' : chat.lastMessage.content}
-                        </p>
-                        <div className="flex items-center gap-1 ml-2">
-                          {chat.lastMessage.senderId === 'me' && (
-                            chat.lastMessage.isRead ? (
-                              <CheckCheck className="h-3 w-3 text-blue-500" />
-                            ) : (
-                              <Check className="h-3 w-3 text-gray-400" />
-                            )
-                          )}
-                          {chat.unreadCount > 0 && (
-                            <span className="bg-blue-500 text-white px-1.5 py-0.5 rounded-full text-xs font-medium min-w-[18px] text-center">
-                              {chat.unreadCount}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
+                        {chat.lastMessage.senderName}: {chat.lastMessage.content}
+                      </p>
                     )}
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <span>
+                          {chat.participants.length} {t.members}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {chat.messageCount} {t.messages}
+                        </span>
+                      </div>
+                      {chat.unreadCount > 0 && (
+                        <Badge className="bg-blue-500 text-white animate-pulse">{chat.unreadCount}</Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -959,138 +1325,216 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Chat Area */}
-        <div className={`flex-1 flex flex-col min-w-0 ${isMobile && showSidebar ? 'hidden' : 'flex'}`}>
+        {/* Область чата */}
+        <div className={`flex-1 flex flex-col min-w-0 ${isMobile && showSidebar ? "hidden" : "flex"}`}>
           {selectedChat ? (
             <>
-              {/* Chat Header */}
-              <div className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    {isMobile && (
-                      <button
-                        onClick={() => setShowSidebar(true)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <ArrowLeft className="h-4 w-4" />
-                      </button>
-                    )}
-                    
-                    <div className="relative">
-                      <div className={`w-10 h-10 bg-gradient-to-br ${getAvatarColor(selectedChat.name)} rounded-full flex items-center justify-center`}>
-                        <span className="text-white font-semibold">
-                          {selectedChat.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      {selectedChat.isOnline && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></div>
+              {/* Заголовок чата */}
+              <div className={`p-4 ${cardStyle} border-b flex items-center justify-between`}>
+                <div className="flex items-center gap-3">
+                  {isMobile && (
+                    <Button variant="ghost" size="icon" onClick={() => setShowSidebar(true)}>
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage 
+                      src={
+                        selectedChat.type === "private" 
+                          ? (() => {
+                              const otherUser = selectedChat.participants.find((u) => u.id !== currentUser?.id)
+                              return otherUser?.avatar || selectedChat.avatar || "/placeholder.svg"
+                            })()
+                          : selectedChat.avatar || "/placeholder.svg"
+                      } 
+                    />
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                      {selectedChat.isGroup ? (
+                        <Users className="h-5 w-5" />
+                      ) : (
+                        (() => {
+                          const otherUser = selectedChat.participants.find((u) => u.id !== currentUser?.id)
+                          const displayName = otherUser?.fullName || otherUser?.username || selectedChat.name
+                          return displayName.charAt(0)
+                        })()
                       )}
-                    </div>
-                    
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-semibold text-gray-900 dark:text-white">
-                          {selectedChat.name}
-                        </h2>
-                        {selectedChat.participants[0]?.isVerified && (
-                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                            <Check className="h-2.5 w-2.5 text-white" />
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {typingUsers.length > 0 
-                          ? `${typingUsers.join(', ')} печатает...`
-                          : selectedChat.isOnline 
-                            ? 'в сети' 
-                            : formatLastSeen(selectedChat.lastSeen || '')
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-semibold">
+                        {selectedChat.type === "private" 
+                          ? (() => {
+                              const otherUser = selectedChat.participants.find((u) => u.id !== currentUser?.id)
+                              return otherUser?.fullName || otherUser?.username || selectedChat.name
+                            })()
+                          : selectedChat.name
                         }
-                      </p>
+                      </h2>
+                      {selectedChat.isEncrypted && <Lock className="h-4 w-4 text-green-500" />}
                     </div>
+                    <p className="text-sm text-gray-500">
+                      {selectedChat.isGroup
+                        ? `${selectedChat.participants.length} ${t.members}`
+                        : typingUsers.length > 0
+                          ? `${typingUsers.join(", ")} ${t.typing}`
+                          : t.online}
+                    </p>
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                      <Phone className="h-4 w-4" />
-                    </button>
-                    <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                      <Video className="h-4 w-4" />
-                    </button>
-                    <div className="relative">
-                      <button onClick={() => setShowChatMenu(v => !v)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" className={buttonStyle}>
+                    <Phone className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className={buttonStyle}>
+                    <Video className="h-4 w-4" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className={buttonStyle}>
                         <MoreVertical className="h-4 w-4" />
-                      </button>
-                      {showChatMenu && (
-                        <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-30">
-                          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700">Очистить чат</button>
-                          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700">Удалить чат</button>
-                          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700">Пожаловаться</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className={cardStyle}>
+                      <DropdownMenuItem>
+                        <Info className="h-4 w-4 mr-2" />
+                        Информация о чате
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Star className="h-4 w-4 mr-2" />
+                        Закрепить чат
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Bell className="h-4 w-4 mr-2" />
+                        Отключить уведомления
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-red-600">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Очистить чат
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
-                {messages.map((message, index) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.senderId === 'me' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md group relative ${
-                        message.senderId === 'me'
-                          ? 'bg-blue-500 text-white ml-12'
-                          : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white mr-12'
-                      }`}
-                    >
-                      {message.senderId !== 'me' && (
-                        <p className="text-xs font-semibold mb-1 text-blue-600 dark:text-blue-400">
-                          {message.senderName}
-                        </p>
-                      )}
-                      
-                      <div className="whitespace-pre-wrap break-words leading-relaxed text-sm">
-                        {message.content}
+              {/* Сообщения */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center space-y-4">
+                      <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+                        <MessageCircle className="h-10 w-10 text-white" />
                       </div>
-                      
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs opacity-70">
-                          {formatTime(message.timestamp)}
-                        </span>
-                        
-                        <div className="flex items-center gap-1">
-                          {message.senderId === 'me' && (
-                            isMessageRead(message, selectedChat, user) ? (
-                              <CheckCheck className="h-3 w-3 opacity-70" />
-                            ) : (
-                              <Check className="h-3 w-3 opacity-70" />
-                            )
-                          )}
-                        </div>
+                      <div>
+                        <h3 className="text-lg font-semibold">{t.noMessages}</h3>
+                        <p className="text-gray-500">{t.startChat}</p>
                       </div>
-
-                      {/* Reaction button */}
-                      <button className="absolute -bottom-2 right-2 w-5 h-5 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110">
-                        <Heart className="h-2.5 w-2.5 text-red-500" />
-                      </button>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  messages.map((message, index) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.senderId === currentUser?.id ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl group ${
+                          message.senderId === currentUser?.id
+                            ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white"
+                            : `${cardStyle}`
+                        }`}
+                      >
+                        {message.replyTo && (
+                          <div className="mb-2 p-2 rounded-xl bg-black/10 border-l-2 border-white/30">
+                            <p className="text-xs font-medium">{message.replyTo.senderName}</p>
+                            <p className="text-xs opacity-80 truncate">{message.replyTo.content}</p>
+                          </div>
+                        )}
+
+                        {message.senderId !== currentUser?.id && (
+                          <p className="text-xs font-medium mb-1 opacity-70">{message.senderName}</p>
+                        )}
+
+                        <p className="break-words">{message.content}</p>
+
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center gap-1">
+                            {message.reactions && message.reactions.length > 0 && (
+                              <div className="flex gap-1">
+                                {message.reactions.slice(0, 3).map((reaction, idx) => (
+                                  <span key={idx} className="text-xs">
+                                    {reaction.emoji}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs opacity-70">
+                              {new Date(message.timestamp).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {message.isEncrypted && <Lock className="h-3 w-3 opacity-70" />}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <MoreVertical className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className={cardStyle}>
+                                <DropdownMenuItem onClick={() => setReplyingTo(message)}>
+                                  <Reply className="h-4 w-4 mr-2" />
+                                  {t.reply}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(message.content)}>
+                                  <Copy className="h-4 w-4 mr-2" />
+                                  {t.copy}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <div className="flex gap-1 p-2">
+                                  {reactionEmojis.slice(0, 5).map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      onClick={() => addReaction(message.id, emoji)}
+                                      className="hover:scale-125 transition-transform"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
 
                 {typingUsers.length > 0 && (
                   <div className="flex justify-start">
-                    <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-2xl shadow-sm">
+                    <div className={`px-4 py-2 rounded-2xl ${cardStyle}`}>
                       <div className="flex items-center gap-2">
                         <div className="flex space-x-1">
-                          <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"></div>
-                          <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" />
+                          <div
+                            className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"
+                            style={{ animationDelay: "0.1s" }}
+                          />
+                          <div
+                            className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"
+                            style={{ animationDelay: "0.2s" }}
+                          />
                         </div>
-                        <span className="text-sm text-gray-600 dark:text-gray-300">
-                          {typingUsers.join(', ')} печатает...
+                        <span className="text-sm text-gray-600">
+                          {typingUsers.join(", ")} {t.typing}
                         </span>
                       </div>
                     </div>
@@ -1100,90 +1544,113 @@ export default function ChatPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Message Input */}
-              <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-3">
-                  <input type="file" ref={fileInputRef} className="hidden" accept="*/*" />
-                  
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <Paperclip className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-                  </button>
-                  
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      placeholder={isNewsChat(selectedChat) ? "Только для чтения" : "Сообщение"}
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      className="w-full px-4 py-2 pr-10 bg-gray-100 dark:bg-gray-700 rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                      disabled={isNewsChat(selectedChat)}
-                    />
-                    <button
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors"
-                    >
-                      <Smile className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                    </button>
+              {/* Поле ответа */}
+              {replyingTo && (
+                <div className={`px-4 py-2 ${cardStyle} border-t`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Reply className="h-4 w-4 text-blue-500" />
+                      <div className="text-sm">
+                        <p className="font-medium text-blue-600">Ответ для {replyingTo.senderName}</p>
+                        <p className="text-gray-600 truncate max-w-xs">{replyingTo.content}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setReplyingTo(null)}>
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  
-                  {newMessage.trim() ? (
-                    <button
-                      onClick={handleSendMessage}
-                      className="w-9 h-9 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center transition-colors"
-                      disabled={isNewsChat(selectedChat) || !newMessage.trim()}
-                    >
-                      <Send className="h-4 w-4 text-white" />
-                    </button>
-                  ) : (
-                    <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                      <Mic className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-                    </button>
-                  )}
+                </div>
+              )}
+
+              {/* Поле ввода */}
+              <div className={`p-4 ${cardStyle} border-t`}>
+                <div className="flex items-center gap-2">
+                  <input type="file" ref={fileInputRef} className="hidden" accept="*/*" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    className={buttonStyle}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                  <div className="flex-1 relative">
+                    <Input
+                      ref={messageInputRef}
+                      placeholder={`${t.send}...`}
+                      value={newMessage}
+                      onChange={(e) => {
+                        setNewMessage(e.target.value)
+                        if (e.target.value.length > 0) {
+                          startTyping()
+                        }
+                      }}
+                      onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                      className={`${inputStyle} pr-20`}
+                      disabled={!isConnected}
+                    />
+                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Smile className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() || !isConnected}
+                    className={`${buttonStyle} bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700`}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                  <div className="flex items-center gap-2">
+                    {isConnected ? (
+                      <span className="flex items-center gap-1 text-green-600">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        {t.connected}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-red-600">
+                        <div className="w-2 h-2 bg-red-500 rounded-full" />
+                        {t.disconnected}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Lock className="h-3 w-3 text-green-500" />
+                    <span>{t.encrypted}</span>
+                  </div>
                 </div>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-              <div className="text-center space-y-4 max-w-md mx-auto p-8">
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center space-y-6">
                 {isMobile && (
-                  <button
-                    onClick={() => setShowSidebar(true)}
-                    className="mb-6 px-6 py-3 bg-blue-500 text-white rounded-full font-medium shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
-                  >
-                    <MessageCircle className="h-5 w-5 mr-2 inline" />
-                    Открыть чаты
-                  </button>
+                  <Button onClick={() => setShowSidebar(true)} className={`mb-4 ${buttonStyle}`}>
+                    <Menu className="h-4 w-4 mr-2" />
+                    Чаты
+                  </Button>
                 )}
-                
-                <div className="w-24 h-24 bg-blue-500 rounded-full flex items-center justify-center mx-auto shadow-lg">
-                  <MessageCircle className="h-12 w-12 text-white" />
+                <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-2xl">
+                  <MessageCircle className="h-16 w-16 text-white" />
                 </div>
-                
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                    Добро пожаловать в ACTOGRAM
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    {t.welcome} в {t.appName}
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-300">
-                    Выберите чат, чтобы начать общение
-                  </p>
+                  <p className="text-gray-500 mt-2">{t.startChat}</p>
                 </div>
-                
-                <div className="flex items-center justify-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center gap-1">
-                    <Shield className="h-4 w-4 text-green-500" />
-                    <span>Безопасно</span>
+                <div className="flex items-center justify-center gap-4 text-sm text-gray-400">
+                  <div className="flex items-center gap-2">{isConnected ? "🟢 Подключено" : "🔴 Отключено"}</div>
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-green-500" />
+                    <span>End-to-End шифрование</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-yellow-500" />
-                    <span>Быстро</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Lock className="h-4 w-4 text-blue-500" />
-                    <span>Зашифровано</span>
+                    <span>Быстрая доставка</span>
                   </div>
                 </div>
               </div>
@@ -1191,30 +1658,6 @@ export default function ChatPage() {
           )}
         </div>
       </div>
-      {/* Модальное окно настроек */}
-      {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md relative">
-            <button onClick={() => setShowSettings(false)} className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
-            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Настройки</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-700 dark:text-gray-300">Тема</span>
-                <button onClick={() => setDarkMode(!darkMode)} className="w-10 h-6 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center px-1">
-                  <span className={`inline-block w-4 h-4 rounded-full transition-transform ${darkMode ? 'bg-blue-500 translate-x-4' : 'bg-gray-400 translate-x-0'}`}></span>
-                </button>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ваш ник</label>
-                <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white select-all">
-                  {user?.username || '—'}
-                </div>
-              </div>
-              <button onClick={handleLogout} className="w-full mt-6 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Выйти из аккаунта</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
