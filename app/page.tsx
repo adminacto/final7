@@ -242,7 +242,7 @@ const AuthForm: React.FC<{ onAuthSuccess: (token: string, user: any) => void }> 
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState<Language>('uz');
-  const [formData, setFormData] = useState({ email: '', password: '', name: '', confirmPassword: '' });
+  const [formData, setFormData] = useState({ email: '', password: '', name: '', username: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const t = translations[currentLanguage];
@@ -255,6 +255,11 @@ const AuthForm: React.FC<{ onAuthSuccess: (token: string, user: any) => void }> 
     e.preventDefault();
     setError(null);
     setLoading(true);
+    if (!isLogin && (!formData.username.startsWith('@') || formData.username.length < 4)) {
+      setError('Username должен начинаться с @ и быть не короче 4 символов');
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch('https://actogr.onrender.com/api/auth', {
         method: 'POST',
@@ -264,7 +269,7 @@ const AuthForm: React.FC<{ onAuthSuccess: (token: string, user: any) => void }> 
           email: formData.email,
           password: formData.password,
           fullName: formData.name,
-          username: isLogin ? undefined : '@' + (formData.email.split('@')[0] || 'user'),
+          username: isLogin ? undefined : formData.username,
         })
       });
       const data = await res.json();
@@ -313,10 +318,16 @@ const AuthForm: React.FC<{ onAuthSuccess: (token: string, user: any) => void }> 
                 {error && <div className="mb-4 text-red-500 text-center text-sm">{error}</div>}
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {!isLogin && (
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><User className="h-5 w-5 text-gray-400" /></div>
-                      <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder={t.fullName} className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 bg-gray-50 hover:bg-white" required={!isLogin} />
-                    </div>
+                    <>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><User className="h-5 w-5 text-gray-400" /></div>
+                        <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder={t.fullName} className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 bg-gray-50 hover:bg-white" required={!isLogin} />
+                      </div>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><User className="h-5 w-5 text-gray-400" /></div>
+                        <input type="text" name="username" value={formData.username} onChange={handleInputChange} placeholder="@username" className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all duration-300 bg-gray-50 hover:bg-white" required pattern="^@[a-zA-Z0-9_]{3,20}$" />
+                      </div>
+                    </>
                   )}
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Mail className="h-5 w-5 text-gray-400" /></div>
@@ -427,7 +438,9 @@ export default function ChatPage() {
   const [newUsername, setNewUsername] = useState('');
   const [nickError, setNickError] = useState<string | null>(null);
   const [nickSuccess, setNickSuccess] = useState<string | null>(null);
-  const [showAuth, setShowAuth] = useState(false);
+  const [showAuth, setShowAuth] = useState(true);
+  const [initLoading, setInitLoading] = useState(true);
+  const [showChatMenu, setShowChatMenu] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -435,9 +448,18 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setToken(localStorage.getItem('actogram_token'));
+      const t = localStorage.getItem('actogram_token');
       const savedUser = localStorage.getItem('actogram_user');
-      setUser(savedUser ? JSON.parse(savedUser) : null);
+      if (t && savedUser) {
+        setToken(t);
+        setUser(JSON.parse(savedUser));
+        setShowAuth(false);
+      } else {
+        setToken(null);
+        setUser(null);
+        setShowAuth(true);
+      }
+      setInitLoading(false);
     }
   }, []);
 
@@ -724,7 +746,10 @@ export default function ChatPage() {
   const [showSettings, setShowSettings] = useState(false)
 
   // Authentication Modal
-  if (showAuth) {
+  if (initLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white text-xl">Загрузка...</div>;
+  }
+  if (showAuth || !token || !user) {
     return <AuthForm onAuthSuccess={(token, user) => {
       setToken(token);
       setUser(user);
@@ -991,9 +1016,18 @@ export default function ChatPage() {
                     <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                       <Video className="h-4 w-4" />
                     </button>
-                    <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
+                    <div className="relative">
+                      <button onClick={() => setShowChatMenu(v => !v)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                      {showChatMenu && (
+                        <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-30">
+                          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700">Очистить чат</button>
+                          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700">Удалить чат</button>
+                          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700">Пожаловаться</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1176,6 +1210,7 @@ export default function ChatPage() {
                   {user?.username || '—'}
                 </div>
               </div>
+              <button onClick={handleLogout} className="w-full mt-6 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Выйти из аккаунта</button>
             </div>
           </div>
         </div>
