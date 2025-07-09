@@ -412,6 +412,7 @@ export default function ChatPage() {
   const [user, setUser] = useState<User | null>(JSON.parse(localStorage.getItem('actogram_user') || 'null'));
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -425,6 +426,7 @@ export default function ChatPage() {
   const [newUsername, setNewUsername] = useState('');
   const [nickError, setNickError] = useState<string | null>(null);
   const [nickSuccess, setNickSuccess] = useState<string | null>(null);
+  const [showAuth, setShowAuth] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -720,6 +722,28 @@ export default function ChatPage() {
       localStorage.setItem('actogram_user', JSON.stringify(user));
     }} />
   }
+
+  // handleCreatePrivateChat должен быть определён до рендера
+  const handleCreatePrivateChat = (otherUser: User) => {
+    if (!socketRef.current || !user) return;
+    const chatId = `private_${user.id}_${otherUser.id}`;
+    socketRef.current.emit('create_private_chat', {
+      userId: otherUser.id,
+      chatId,
+      createdBy: user.id
+    });
+    setShowSearch(false);
+    setSearchQuery('');
+    // После создания чата — слушаем событие new_private_chat
+    socketRef.current.once('new_private_chat', (chat: Chat) => {
+      setChats(prev => {
+        const exists = prev.find(c => c.id === chat.id);
+        if (exists) return prev;
+        return [chat, ...prev];
+      });
+      setSelectedChat(chat);
+    });
+  };
 
   return (
     <div className={`h-screen flex ${darkMode ? 'dark' : ''}`}>
